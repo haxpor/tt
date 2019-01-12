@@ -33,8 +33,11 @@ extern time_t tt_util_get_current_timestamp();
 ///
 /// Generate signature
 ///
+/// Note: User has responsibility to free the returned string as such result string is created dyanmically.
+///
 /// \param http_method HTTP request method. See enum e_http_method.
 /// \param request_url Request url for twitter REST api
+/// \param status status to update on twitter
 /// \param oauth_consumer_key OAuth consumer key
 /// \param oauth_nonce OAuth nonce
 /// \param timestamp Unix timestamp in seconds
@@ -42,16 +45,16 @@ extern time_t tt_util_get_current_timestamp();
 /// \param oauth_version Oauth version
 /// \return Generated signature string
 ///
-extern const char* tt_util_generate_signature(enum e_http_method http_method, const char* request_url, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version);
+extern char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version);
 
 ///
 /// Do a percent encode on input string.
 ///
-/// This function is not thread-safe.
+/// Note: User has responsibility to free the returned string as such result string is created dyanmically.
 ///
 /// \param string input string
 /// \return Percent encoded string.
 ///
-extern const char* tt_util_percent_encode(const char* string);
+extern char* tt_util_percent_encode(const char* string);
 
 #endif

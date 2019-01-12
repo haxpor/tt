@@ -6,8 +6,8 @@
 #include "common_debug.h"
 
 #define BUFFER_SIZE 840
+#define BUFFER_RESULT_SIZE 4096
 
-static char dst_percent_encoded_[BUFFER_SIZE+1];
 
 // string used in randomize operation
 static const char* ALPHAN_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -50,9 +50,11 @@ void tt_util_init()
 {
 	// set seed in random function
 	srand(time(NULL));
+}
 
-  // clear memory space of destination percent encoded string
-  memset(dst_percent_encoded_, 0, sizeof(dst_percent_encoded_));
+time_t tt_util_get_current_timestamp()
+{
+  return time(NULL);
 }
 
 void tt_util_generate_nonce(char* dst, int length)
@@ -66,15 +68,49 @@ void tt_util_generate_nonce(char* dst, int length)
 	}
 }
 
-const char* tt_util_generate_signature(enum e_http_method http_method, const char* request_url, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version)
+#define PEN(x) tt_util_percent_encode(x)
+
+char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version)
 {
-  return NULL;
+  char* dst_result_signature_str = malloc(sizeof(char) * (BUFFER_RESULT_SIZE+1));
+  // our final result string
+  memset(dst_result_signature_str, 0, sizeof(char) * (BUFFER_RESULT_SIZE+1));
+
+  // allocate space for timestamp preparing for conversion from long to string
+  char temp_timestamp_str[10+1];
+  memset(temp_timestamp_str, 0, sizeof(temp_timestamp_str));
+  // convert timestamp to string
+  snprintf(temp_timestamp_str, sizeof(temp_timestamp_str), "%ld", timestamp);
+
+  // store result from percent encoded from each one
+  char* oauth_consumer_key_ptr = PEN(oauth_consumer_key);
+  char* oauth_nonce_ptr = PEN(oauth_nonce);
+  char* oauth_signature_method_ptr = PEN(oauth_signature_method);
+  char* temp_timestamp_str_ptr = PEN(temp_timestamp_str);
+  char* oauth_token_ptr = PEN(oauth_token);
+  char* oauth_version_ptr = PEN(oauth_version);
+  char* status_ptr = PEN(status);
+
+  snprintf(dst_result_signature_str, BUFFER_RESULT_SIZE, "oauth_consumer_key=%s&oauth_nonce=%s&oauth_signature_method=%s&oauth_timestamp=%s&oauth_token=%s&oauth_version=%s&status=%s", oauth_consumer_key_ptr, oauth_nonce_ptr, oauth_signature_method_ptr, temp_timestamp_str_ptr, oauth_token_ptr, oauth_version_ptr, status_ptr);
+
+  // safe to free those string pointers now
+  free(oauth_consumer_key_ptr);
+  free(oauth_nonce_ptr);
+  free(oauth_signature_method_ptr);
+  free(temp_timestamp_str_ptr);
+  free(oauth_token_ptr);
+  free(oauth_version_ptr);
+  free(status_ptr);
+
+  return dst_result_signature_str;
 }
 
-const char* tt_util_percent_encode(const char* string)
+char* tt_util_percent_encode(const char* string)
 {
+  // dynamically allocate string
+  char* dst_percent_encoded_ = malloc(sizeof(char) * (BUFFER_SIZE+1));
   // set entire array to 0
-  memset(dst_percent_encoded_, 0, sizeof(dst_percent_encoded_));
+  memset(dst_percent_encoded_, 0, sizeof(char) * (BUFFER_SIZE+1));
 
   // get the size of the table
   int table_size = sizeof(PERCENT_ENCODE_TABLE);
