@@ -28,10 +28,10 @@
 /*   Sort out endian tolerance. Currently little endian.        */
 /****************************************************************/
  
+#include "hmac_sha1.h"
 #include <stdlib.h>
 #include <stdio.h>
 
-#define MAX_MESSAGE_LENGTH 4096
 
 /********************************************/
 /* Test Cases                               */
@@ -689,105 +689,4 @@ int get_testcase(   int test_case,
     }
 
     return test_case_length[test_case-1];
-}
-
-
-/****************************************************/
-/* main()                                           */
-/* Iterate through the test cases, passing them     */
-/* through the hmac-sha-1 algorithm to produce test */
-/* vectors                                          */
-/****************************************************/
-
-int main()
-{
-    int length;
-    int test_case;
-    int num_blocks;
-    int block_remainder;
-    int num_key_blocks;
-    int key_block_remainder;
-    int i;
-    int j;
-
-    unsigned char plaintext[MAX_MESSAGE_LENGTH+128];
-    unsigned char digest[20];
-
-    unsigned char key[256];
-    int key_length;
-    int *key_length_ptr;
-
-    key_length_ptr = &key_length;
-
-    for (test_case = 1; test_case < (NUM_TEST_CASES+1); test_case++)
-    {
-
-printf("Getting test case %d\n",test_case);
-
-        length = get_testcase(test_case, plaintext, key, key_length_ptr);
-
-        num_blocks = length / 16;                 /* Calculate number of 16 byte blocks */
-        block_remainder = length % 16;
-        num_key_blocks = key_length / 16;         /* Calculate number of 16 byte blocks */
-        key_block_remainder = key_length % 16;
-
-        printf ("TEST CASE %d\n",test_case);
-        printf ("\tKey Length = %d\n", key_length);
-        printf ("\tKEY =\n");
-        for (i=0;i<num_key_blocks; i++)
-        {
-            printf("\t\t"); 
-            for (j=0; j<16;j++)
-            {
-                printf("%02x ",key[j + (i*16)]);
-            }
-            printf("\n");
-        }
-
-        if (key_block_remainder > 0)                   /* Print the final line */
-        {
-            printf("\t\t");
-            for (j=0; j<key_block_remainder;j++)
-            {
-                printf("%02x ",key[j + ((num_key_blocks)*16)]);
-            }
-            printf("\n");
-        }
-
-        printf ("\tData Length = %d\n",length);
-        printf ("\tDATA =\n");
-
-        for (i=0;i<num_blocks; i++)
-        {
-            printf("\t\t"); 
-            for (j=0; j<16;j++)
-            {
-                printf("%02x ",plaintext[j + (i*16)]);
-            }
-            printf("\n");
-        }
-
-        if (block_remainder > 0)                   /* Print the final line */
-        {
-            printf("\t\t");
-            for (j=0; j<block_remainder;j++)
-            {
-                printf("%02x ",plaintext[j + (num_blocks*16)]);
-            }
-            printf("\n");
-        }
-
-        hmac_sha1(key, key_length, plaintext, length, digest);
-
-        printf ("\tDigest (lsb first, msb last) =\n");
-        printf("\t\t%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                digest[0], digest[1], digest[2], digest[3], digest[4],
-                digest[5], digest[6], digest[7], digest[8], digest[9]);
-        printf("\t\t%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n\n",
-                digest[10], digest[11], digest[12], digest[13], digest[14],
-                digest[15], digest[16], digest[17], digest[18], digest[19]);
-
-    }
-
-    return 0;
 }

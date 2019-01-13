@@ -7,10 +7,12 @@ lflags =
 
 base_dir = src
 tt_dir = src/tt
+externals_dir = src/externals
 
 targets = $(base_dir)/main.o \
 	  $(tt_dir)/api.o \
 	  $(tt_dir)/util.o \
+	  $(externals_dir)/hmacsha1.o \
 	  $(output)
 
 # remove out $(output) as part of $(targets)
@@ -28,6 +30,9 @@ $(tt_dir)/api.o: $(tt_dir)/api.c $(tt_dir)/api.h
 	$(cc) -c $< $(cflags) -o $@
 
 $(tt_dir)/util.o: $(tt_dir)/util.c $(tt_dir)/util.h
+	$(cc) -c $< $(cflags) -o $@
+
+$(externals_dir)/hmacsha1.o: $(externals_dir)/hmac_sha1.c $(externals_dir)/hmac_sha1.h
 	$(cc) -c $< $(cflags) -o $@
 
 clean:
