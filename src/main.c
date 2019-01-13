@@ -20,6 +20,7 @@ int main(int argc, char* argv[])
   // get access token
   const char* access_token = getenv("TT_ACCESS_TOKEN");
 
+  // get signature base string
   char* signature_str = tt_util_generate_signature_for_updateapi(HTTP_METHOD_POST,
     "https://api.twitter.com/1.1/statuses/update.json",
     "Ladies + Gentlemen",
@@ -29,10 +30,18 @@ int main(int argc, char* argv[])
     tt_util_get_current_timestamp(),
     access_token,
     "1.0");
-  printf("signatur string = %s\n", signature_str);
+  printf("signature = %s\n", signature_str);
+
+  // get signing key
+  const char* consumer_secret = getenv("TT_CONSUMER_SECRET");
+  const char* oauth_secret = getenv("TT_ACCESS_TOKEN_SECRET");
+
+  char* signingkey = tt_util_get_signingkey(consumer_secret, oauth_secret);
+  printf("signing key = %s\n", signingkey);
 
   // free returned string
   free(signature_str);
+  free(signingkey);
 
 	return 0;
 }

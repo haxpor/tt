@@ -57,4 +57,14 @@ extern char* tt_util_generate_signature_for_updateapi(enum e_http_method http_me
 ///
 extern char* tt_util_percent_encode(const char* string);
 
+///
+/// Get the signing key.
+/// Note: caller has responsibility to free the returned string as it was created dynamically on heap.
+///
+/// \param consumer_secret consumer secret
+/// \param oauth_token_secret oauth token secret
+/// \return Signing key
+///
+extern char* tt_util_get_signingkey(const char* consumer_secret, const char* oauth_token_secret);
+
 #endif

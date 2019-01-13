@@ -7,7 +7,7 @@
 
 #define BUFFER_SIZE 840
 #define BUFFER_RESULT_SIZE 4096
-
+#define BUFFER_RESULT_SIGNINGKEY_SIZE 255
 
 // string used in randomize operation
 static const char* ALPHAN_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -72,7 +72,7 @@ void tt_util_generate_nonce(char* dst, int length)
 
 char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version)
 {
-  char* dst_result_signature_str = malloc(sizeof(char) * (BUFFER_RESULT_SIZE+1));
+  char dst_result_signature_str[BUFFER_RESULT_SIZE+1];
   // our final result string
   memset(dst_result_signature_str, 0, sizeof(char) * (BUFFER_RESULT_SIZE+1));
 
@@ -102,7 +102,32 @@ char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, c
   free(oauth_version_ptr);
   free(status_ptr);
 
-  return dst_result_signature_str;
+  // creating a signature base string
+  char* result_signature_base_string = malloc(sizeof(char) * (BUFFER_RESULT_SIZE+1));
+  memset(result_signature_base_string, 0, sizeof(char) * (BUFFER_RESULT_SIZE+1));
+
+  // check http method
+  char http_method_fixed[4+1];
+  memset(http_method_fixed, 0, 4+1);
+  if (http_method == HTTP_METHOD_GET)
+  {
+    strncpy(http_method_fixed, "GET", 3);
+  }
+  else if  (http_method == HTTP_METHOD_POST)
+  {
+    strncpy(http_method_fixed, "POST", 4);
+  }
+
+  // percent encode base url
+  char* base_url_ptr  = PEN(request_url);
+  char* pencoded_param_str_ptr = PEN(dst_result_signature_str);
+
+  snprintf(result_signature_base_string, BUFFER_RESULT_SIZE, "%s&%s&%s", http_method_fixed, base_url_ptr, pencoded_param_str_ptr);
+
+  free(base_url_ptr);
+  free(pencoded_param_str_ptr);
+
+  return result_signature_base_string;
 }
 
 char* tt_util_percent_encode(const char* string)
@@ -157,3 +182,24 @@ char* tt_util_percent_encode(const char* string)
 
   return dst_percent_encoded_;
 }
+
+char* tt_util_get_signingkey(const char* consumer_secret, const char* oauth_token_secret)
+{
+  // allocate result string dynamically
+  char* signingkey_str = malloc(sizeof(char) * (BUFFER_RESULT_SIGNINGKEY_SIZE+1));
+  // set empty to result string
+  memset(signingkey_str, 0, sizeof(char) * (BUFFER_RESULT_SIGNINGKEY_SIZE+1));
+
+  // percent encode
+  char* consumer_secret_pen_ptr = PEN(consumer_secret);
+  char* oauth_token_secret_pen_ptr = PEN(oauth_token_secret);
+
+  snprintf(signingkey_str, BUFFER_RESULT_SIGNINGKEY_SIZE, "%s&%s", consumer_secret_pen_ptr, oauth_token_secret_pen_ptr);
+
+  // free
+  free(consumer_secret_pen_ptr);
+  free(oauth_token_secret_pen_ptr);
+
+  return signingkey_str;
+}
+
