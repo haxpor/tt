@@ -4,6 +4,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include "common_debug.h"
+#include <openssl/bio.h>
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
 
 #define BUFFER_SIZE 840
 #define BUFFER_RESULT_SIZE 4096
@@ -203,3 +207,37 @@ char* tt_util_get_signingkey(const char* consumer_secret, const char* oauth_toke
   return signingkey_str;
 }
 
+unsigned char* tt_util_hmac_sha1(const char* data, const char* key)
+{
+  // pointer to returned string result of digest
+  unsigned char* digest;
+
+  digest = HMAC(EVP_sha1(), key, strlen(key), (const unsigned char*)data, strlen(data), NULL, NULL);
+
+  return digest;
+}
+
+char* tt_util_base64(const unsigned char* buffer, size_t length)
+{
+  BIO* bio, *b64;
+  BUF_MEM *buffer_ptr;
+
+  b64 = BIO_new(BIO_f_base64());
+  bio = BIO_new(BIO_s_mem());
+  bio = BIO_push(b64, bio);
+
+  BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+  BIO_write(bio, buffer, length);
+  BIO_flush(bio);
+  BIO_get_mem_ptr(bio, &buffer_ptr);
+  BIO_set_close(bio, BIO_NOCLOSE);
+
+  // allocate enough space of what buffer has
+  char* result_str = malloc(sizeof(char) * (buffer_ptr->length+1));
+  memset(result_str, 0, sizeof(char) * (buffer_ptr->length+1));
+  strncpy(result_str, buffer_ptr->data, buffer_ptr->length);
+
+  BIO_free_all(bio);
+
+  return result_str;
+}

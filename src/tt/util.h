@@ -67,4 +67,24 @@ extern char* tt_util_percent_encode(const char* string);
 ///
 extern char* tt_util_get_signingkey(const char* consumer_secret, const char* oauth_token_secret);
 
+///
+/// Compute HMAC-SHA1
+/// User has no need to free string after done using it.
+///
+/// \param data input data to compute digest. Assume null-terminated string.
+/// \param key key used in compute digest. Assume null-terminated string.
+/// \return Pointer to returned string.
+///
+extern unsigned char* tt_util_hmac_sha1(const char* data, const char* key);
+
+///
+/// Compute base64.
+/// Note: User has responsibility to free returned string after done using it.
+///
+/// \param buffer input buffet to get compute base64
+/// \parm length size
+/// \return Dynamically allocated string on the heap.
+///
+extern char* tt_util_base64(const unsigned char* buffer, size_t length);
+
 #endif
