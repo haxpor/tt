@@ -13,21 +13,6 @@
 #define BUFFER_RESULT_SIZE 4096
 #define BUFFER_RESULT_SIGNINGKEY_SIZE 255
 
-#define CONSUMER_KEY_LEN 25
-#define CONSUMER_SECRET_LEN 50
-#define ACCESS_TOKEN_LEN 50
-#define ACCESS_TOKEN_SECRET_LEN 45
-
-static char consumer_key_[CONSUMER_KEY_LEN+1];
-static char consumer_secret_[CONSUMER_SECRET_LEN+1];
-static char access_token_[ACCESS_TOKEN_LEN+1];
-static char access_token_secret_[ACCESS_TOKEN_SECRET_LEN+1];
-
-static bool consumer_key_fetched_ = false;
-static bool consumer_secret_fetched_ = false;
-static bool access_token_fetched_ = false;
-static bool access_token_secret_fetched_ = false;
-
 // string used in randomize operation
 static const char* ALPHAN_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 // pre-calculated to cache the length of alphanumeric string (for better performance later)
@@ -268,78 +253,19 @@ const char* tt_util_getenv_value(enum e_env_name name)
 {
   if (name == tt_env_name_CONSUMER_KEY)
   {
-    if (!consumer_key_fetched_)
-    {
-      char* val = getenv("TT_CONSUMER_KEY");
-      consumer_key_fetched_ = true;
-      if (val == NULL)
-      {
-        fprintf(stderr, "Warning, consumer key is not set in environment variable.");
-      }
-      else
-      {
-        // copy and retain the value
-        strncpy(consumer_key_, val, CONSUMER_KEY_LEN);
-        printf("consumer key = %s\n", consumer_key_);
-      }
-    }
-
-    return consumer_key_;
+    return getenv("TT_CONSUMER_KEY");
   }
   else if (name == tt_env_name_CONSUMER_SECRET)
   {
-    if (!consumer_secret_fetched_)
-    {
-      char* val = getenv("TT_CONSUMER_SECRET");
-      consumer_secret_fetched_ = true;
-      if (val == NULL)
-      {
-        fprintf(stderr, "Warning, consumer secret is not set in environment variable.");
-      }
-      else
-      {
-        strncpy(consumer_secret_, val, CONSUMER_SECRET_LEN);
-        printf("consumer secret = %s\n", consumer_secret_);
-      }
-    }
-
-    return consumer_secret_;
+    return getenv("TT_CONSUMER_SECRET");
   }
   else if (name == tt_env_name_ACCESS_TOKEN)
   {
-    if (!access_token_fetched_)
-    {
-      char* val = getenv("TT_ACCESS_TOKEN");
-      access_token_fetched_ = true;
-      if (val == NULL)
-      {
-        fprintf(stderr, "Warning, access token is not set in environment variable.");
-      }
-      else
-      {
-        strncpy(access_token_, val, ACCESS_TOKEN_LEN);
-        printf("access token = %s\n", access_token_);
-      }
-    }
-
-    return access_token_;
+    return getenv("TT_ACCESS_TOKEN");
   }
   else if (name == tt_env_name_ACCESS_TOKEN_SECRET)
   {
-    if (!access_token_secret_fetched_)
-    {
-      char* val = getenv("TT_ACCESS_TOKEN_SECRET");
-      access_token_secret_fetched_ = true;
-      if (val == NULL)
-        fprintf(stderr, "Warning, access token secret is not set in environment variable.");
-      else
-      {
-        strncpy(access_token_secret_, val, ACCESS_TOKEN_SECRET_LEN);
-        printf("access token secret= %s\n", access_token_secret_);
-      }
-    }
-
-    return access_token_secret_;
+    return getenv("TT_ACCESS_TOKEN_SECRET");
   }
 
   // otherwise
