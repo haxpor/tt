@@ -2,18 +2,20 @@
 #define util_h_
 
 #include <time.h>
-
-/// method for http request
-enum e_http_method
-{
-  HTTP_METHOD_GET,
-  HTTP_METHOD_POST
-};
+#include "tt_types.h"
 
 ///
 /// Initialization of util
 /// Call this for the first time using it.
 extern void tt_util_init();
+
+///
+/// Get environment variable value from name
+///
+/// \param name environment variable name
+/// \return environment variable value. No needto free it after using it.
+///
+extern const char* tt_util_getenv_value(enum e_env_name name);
 
 ///
 /// Generate random alphanumeric string up to input length.

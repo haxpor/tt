@@ -2,17 +2,18 @@ output = tt.out
 
 cc = gcc
 
-cflags = -std=c99 -g
-lflags = -lcrypto
+cflags = -std=c99 -g -Isrc/tt
+lflags = -lcrypto -lcurl
 
 base_dir = src
 tt_dir = src/tt
 externals_dir = src/externals
 
+required_headers = $(tt_dir)/tt.h $(tt_dir)/tt_types.h
+
 targets = $(base_dir)/main.o \
-	  $(tt_dir)/api.o \
-	  $(tt_dir)/util.o \
-	  $(tt_dir)/base64.o \
+	  $(tt_dir)/tt_api.o \
+	  $(tt_dir)/tt_util.o \
 	  $(output)
 
 # remove out $(output) as part of $(targets)
@@ -26,13 +27,10 @@ $(output): $(linking_targets)
 $(base_dir)/main.o: $(base_dir)/main.c
 	$(cc) -c $< $(cflags) -o $@
 
-$(tt_dir)/api.o: $(tt_dir)/api.c $(tt_dir)/api.h
+$(tt_dir)/api.o: $(tt_dir)/tt_api.c $(tt_dir)/tt_api.h $(required_headers)
 	$(cc) -c $< $(cflags) -o $@
 
-$(tt_dir)/util.o: $(tt_dir)/util.c $(tt_dir)/util.h
-	$(cc) -c $< $(cflags) -o $@
-
-$(tt_dir)/base64.o: $(tt_dir)/base64.c $(tt_dir)/base64.h
+$(tt_dir)/util.o: $(tt_dir)/tt_util.c $(tt_dir)/tt_util.h $(required_headers)
 	$(cc) -c $< $(cflags) -o $@
 
 clean:
