@@ -1,4 +1,4 @@
-output = tt.out
+output = tt
 
 cc = gcc
 
@@ -27,12 +27,15 @@ $(output): $(linking_targets)
 $(base_dir)/main.o: $(base_dir)/main.c
 	$(cc) -c $< $(cflags) -o $@
 
-$(tt_dir)/api.o: $(tt_dir)/tt_api.c $(tt_dir)/tt_api.h $(required_headers)
+$(tt_dir)/tt_api.o: $(tt_dir)/tt_api.c $(tt_dir)/tt_api.h $(required_headers)
 	$(cc) -c $< $(cflags) -o $@
 
-$(tt_dir)/util.o: $(tt_dir)/tt_util.c $(tt_dir)/tt_util.h $(required_headers)
+$(tt_dir)/tt_util.o: $(tt_dir)/tt_util.c $(tt_dir)/tt_util.h $(required_headers)
 	$(cc) -c $< $(cflags) -o $@
+
+install:
+	cp -p tt /usr/local/bin/tt
 
 clean:
-	rm -rf *.out
+	rm -rf tt
 	find . -type f -name *.o -exec rm -rf {} +

@@ -54,11 +54,6 @@ void tt_util_init()
 {
 	// set seed in random function
 	srand(time(NULL));
-
-  memset(consumer_key_, 0, sizeof(consumer_key_));
-  memset(consumer_secret_, 0, sizeof(consumer_secret_));
-  memset(access_token_, 0, sizeof(access_token_));
-  memset(access_token_secret_, 0, sizeof(access_token_secret_));
 }
 
 time_t tt_util_get_current_timestamp()
