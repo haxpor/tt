@@ -74,7 +74,6 @@ void tt_util_generate_nonce(char* dst, int length)
 
 #define PEN(x) tt_util_percent_encode(x)
 
-
 // FIXME: make this function generic to generate signature for any API that needs it...
 char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version)
 {

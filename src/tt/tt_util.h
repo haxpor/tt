@@ -4,6 +4,8 @@
 #include <time.h>
 #include "tt_types.h"
 
+#define tt_init() tt_util_init()
+
 ///
 /// Initialization of util
 /// Call this for the first time using it.
