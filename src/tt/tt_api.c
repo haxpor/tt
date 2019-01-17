@@ -13,9 +13,10 @@
 
 // worker function to actually make HTTP request
 // FIXME: Make this function generic and support other twitter's API
-static void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, char* param, ...);
+// error_code - to receive error back if any. NULL to not receive any error code back in case of error.
+static void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, int* error_code, char* param, ...);
 
-void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, char* param, ...)
+void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, int* error_code, char* param, ...)
 {
   CURL* curl;
 
@@ -58,33 +59,33 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   const char* oauth_secret = tt_util_getenv_value(tt_env_name_ACCESS_TOKEN_SECRET);
 
   char* signingkey = tt_util_get_signingkey(consumer_secret, oauth_secret);
-  printf("signing key = %s\n", signingkey);
+  //printf("signing key = %s\n", signingkey);
 
   // apply with hmac-sha1 algorithm
   unsigned char* signature_digest = tt_util_hmac_sha1(signature_base_str, signingkey);
-  printf("signature = %s\n", signature_digest);
-  for (int i=0; i<20; i++)
-  {
-    printf("%02X", signature_digest[i]);
-  }
-  printf("\n");
+  //printf("signature = %s\n", signature_digest);
+  //for (int i=0; i<20; i++)
+  //{
+  //  printf("%02X", signature_digest[i]);
+  //}
+  //printf("\n");
 
   // compute base64
   // size is fixed, it's 20 bytes result from hmac-sha1
   char* signature = tt_util_base64(signature_digest, 20);
-  printf("base64 = %s [length %lu]\n", signature, strlen(signature));
+  //printf("base64 = %s [length %lu]\n", signature, strlen(signature));
 
-  printf("\n\nparameters in use\n");
-  printf("- oauth_consumer_key = %s\n", consumer_key);
-  printf("- oauth_nonce = %s\n", nonce);
-  printf("- oauth_signature (raw) = %s\n", signature);
-  char* tt = tt_util_percent_encode(signature);
-  printf("- oauth_signature = %s\n", tt);
-  printf("- oauth_signature_method = %s\n", "HMAC-SHA1");
-  printf("- oauth_timestamp = %ld\n", timestamp);
-  printf("- oauth_tokoen = %s\n", access_token);
-  printf("- oauth_version = %s\n\n", "1.0");
-  free(tt);
+  //printf("\n\nparameters in use\n");
+  //printf("- oauth_consumer_key = %s\n", consumer_key);
+  //printf("- oauth_nonce = %s\n", nonce);
+  //printf("- oauth_signature (raw) = %s\n", signature);
+  //char* tt = tt_util_percent_encode(signature);
+  //printf("- oauth_signature = %s\n", tt);
+  //printf("- oauth_signature_method = %s\n", "HMAC-SHA1");
+  //printf("- oauth_timestamp = %ld\n", timestamp);
+  //printf("- oauth_tokoen = %s\n", access_token);
+  //printf("- oauth_version = %s\n\n", "1.0");
+  //free(tt);
 
   // print header string
   //char cmd_str[1024+1];
@@ -110,29 +111,28 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   free(signature);
   free(pen_signature);
 
-  printf("Authorization header = %s\n", authoriz_header);
+  //printf("Authorization header = %s\n", authoriz_header);
 
   // make request with curl
   struct curl_slist *chunk = NULL;
   chunk = curl_slist_append(chunk, authoriz_header);
   CURLcode res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-
-  // TODO: Support other api by append all parameters here after url ...
   
   // percent encode status
   char* pen_status = tt_util_percent_encode(status);
 
   char url_buff[URL_BUFF_LEN+1];
   memset(url_buff, 0, sizeof(url_buff));
+  // TODO: Support other api by append all parameters here after url ...
   snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
 
-  printf("url = %s\n", url_buff);
+  //printf("url = %s\n", url_buff);
 
   free(pen_status);
 
   curl_easy_setopt(curl, CURLOPT_URL, url_buff);
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
-  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
   res = curl_easy_perform(curl);
   // check for errors
@@ -146,7 +146,7 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   curl_slist_free_all(chunk);
 }
 
-void tt_api_update_status(const char* status)
+void tt_api_update_status(const char* status, int* error_code)
 {
-  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", status, NULL);
+  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", status, error_code, NULL);
 }
