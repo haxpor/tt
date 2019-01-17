@@ -2,14 +2,14 @@ output = tt
 
 cc = gcc
 
-cflags = -std=c99 -g -Isrc/tt
+cflags = -std=c99 -g -Isrc/tt -Isrc/externals
 lflags = -lcrypto -lcurl
 
 base_dir = src
 tt_dir = src/tt
 externals_dir = src/externals
 
-required_headers = $(tt_dir)/tt.h $(tt_dir)/tt_types.h
+required_headers = $(tt_dir)/tt.h $(tt_dir)/tt_types.h $(externals_dir)/mjson.h
 
 targets = $(base_dir)/main.o \
 	  $(tt_dir)/tt_api.o \

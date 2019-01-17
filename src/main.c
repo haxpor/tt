@@ -34,7 +34,6 @@ int main(int argc, char* argv[])
     tt_update_status(status, &error_code);
     if (error_code > 0)
     {
-      fprintf(stderr, "Error updating tweet [code: %d]\n", error_code);
       return -1;
     }
   }

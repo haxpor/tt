@@ -3,20 +3,69 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <curl/curl.h>
 #include "tt_util.h"
 #include "tt_types.h"
-#include <curl/curl.h>
+#include "mjson.h"
 
 #define NONCE_LENGTH 42
 #define AUTHORIZATION_HEADER_BUFF_LEN 1024
 #define URL_BUFF_LEN 1024
 
+struct api_response_st_
+{
+  int error_code;
+  char error_message[255];
+};
+
+static void init_defauts_api_response_st_(struct api_response_st_* res_st);
 // worker function to actually make HTTP request
 // FIXME: Make this function generic and support other twitter's API
 // error_code - to receive error back if any. NULL to not receive any error code back in case of error.
-static void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, int* error_code, char* param, ...);
+static void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, struct api_response_st_* res_st, char* param, ...);
+static size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp);
 
-void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, int* error_code, char* param, ...)
+void init_defauts_api_response_st_(struct api_response_st_* res_st)
+{
+  // 0 means success initially
+  res_st->error_code = 0;
+  // initially there's no error message, but check error_code first whether it > 0 or not,
+  // if so then there's error occurs
+  memset(res_st->error_message, 0, sizeof(res_st->error_message));
+}
+
+size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp)
+{
+  // convert content to string
+  const char* contents_str = contents;
+
+  // check whether there's an error occurred as returned from api call or not
+  const char* p;
+  int len;
+  enum mjson_tok ret = mjson_find(contents_str, strlen(contents_str), "$.errors", &p, &len);
+
+  // if found means error happens
+  // note: if it's not invalid then it means found
+  if (ret != MJSON_TOK_INVALID)
+  {
+    // grab length of content
+    size_t content_len = strlen(contents_str);
+
+    // cast user's pointer to our known struct
+    struct api_response_st_* res_st = (struct api_response_st_*)userp;
+
+    // grab error code
+    res_st->error_code = mjson_get_number(contents_str, content_len, "$.errors[0].code", 0);
+    // grab error message
+    mjson_get_string(contents_str, content_len, "$.errors[0].message", res_st->error_message, sizeof(res_st->error_message));
+
+    fprintf(stderr, "Error! code %d : %s\n", res_st->error_code, res_st->error_message);
+  }
+
+  return size * nmemb;
+}
+
+void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, struct api_response_st_* res_st, char* param, ...)
 {
   CURL* curl;
 
@@ -133,6 +182,8 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   curl_easy_setopt(curl, CURLOPT_URL, url_buff);
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
 
   res = curl_easy_perform(curl);
   // check for errors
@@ -148,5 +199,14 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
 
 void tt_api_update_status(const char* status, int* error_code)
 {
-  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", status, error_code, NULL);
+  struct api_response_st_ res_st;
+  init_defauts_api_response_st_(&res_st);
+
+  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", status, &res_st, NULL);
+
+  // if success, then 
+  if (res_st.error_code == 0)
+  {
+    printf("Tweeted done\n");
+  }
 }
