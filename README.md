@@ -21,6 +21,18 @@ Set the following environment variables i.e. `~/.bash_profile` for your _Keys an
 
 Then on terminal window you're going to execute the program, remember to source the file via `source ~/.bash_profile`.
 
+# Requirement
+
+You will need
+
+* [openssl](https://www.openssl.org/)
+* [curl](https://github.com/curl/curl)
+
+installed on your system. In most case, you won't need to do anything as they are likely to be installed already.
+
+But if building the project doesn't work for you, try to install them.
+The recommend way is to compile and build it from source to install it. Follow instruction on each of requirement above.
+
 # Build and Installation
 
 Execute `make` to build the project.
