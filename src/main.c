@@ -5,10 +5,10 @@
 
 int main(int argc, char* argv[])
 {
-	tt_util_init();
+	tt_init();
 
   // tweet to twitter
-  tt_api_update_status("Test - nothing here");
+  tt_update_status("Test - nothing here");
 
 	return 0;
 }
