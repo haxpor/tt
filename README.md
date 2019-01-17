@@ -21,6 +21,18 @@ Set the following environment variables i.e. `~/.bash_profile` for your _Keys an
 
 Then on terminal window you're going to execute the program, remember to source the file via `source ~/.bash_profile`.
 
+# Build and Installation
+
+Execute `make` to build the project.
+
+Then
+
+Execute `make install` to install it on your system (at `/usr/local/bin`).
+
+# Support Command
+
+- `tt update <tweet text>` - update tweet
+
 # License
 
 MIT, Wasin Thonkaew.
