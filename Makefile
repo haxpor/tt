@@ -37,5 +37,5 @@ install:
 	cp -p tt /usr/local/bin/tt
 
 clean:
-	rm -rf tt
+	rm -rf $(output)
 	find . -type f -name *.o -exec rm -rf {} +
