@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <openssl/bio.h>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
@@ -20,6 +21,71 @@ static const int ALPHAN_STR_LEN = 62;
 
 /// random integer from 0 to max (exclusion)
 static int randomi_(int max);
+
+///
+/// get total element inside input variable list
+///
+/// \param first_param first parameter of the variable list
+/// \param va variable list
+/// \return total number of elements inside input variable list
+///
+static int va_func_total(const KEYVALUE* first_kv, va_list va);
+
+///
+/// collect all elements inside input variable list
+/// create a new array of string pointer, then return
+///
+/// \param first_param first parameter of the variable list
+/// \param va variable list
+/// \param dst destination to write result of all variable list's elements to
+/// \parm max_elem_size maximum size to set to dst
+///
+static void va_func_collect(const KEYVALUE* first_kv, va_list va, KEYVALUE* dst[], int max_elem_size);
+
+int va_func_total(const KEYVALUE* first_kv, va_list va)
+{
+  if (first_kv == NULL)
+    return 0;
+
+  const KEYVALUE* param_kv = NULL;
+  int count = 1;
+  while(1) {
+    param_kv = va_arg(va, const KEYVALUE*);
+
+    if (param_kv != NULL)
+      count++;
+    else
+      break;
+  }
+
+  return count;
+}
+
+void va_func_collect(const KEYVALUE* first_param, va_list va, KEYVALUE* dst[], int max_elem_size)
+{
+  if (first_param == NULL)
+    return;
+
+  //printf("[0] = %s\n", first_param);
+  // store first parameter at the destination
+  dst[0] = (KEYVALUE*)first_param;
+
+  const KEYVALUE* temp_kv = NULL;
+  int index = 1;
+  while (1)
+  {
+    temp_kv = va_arg(va, const KEYVALUE*);
+    if (temp_kv != NULL)
+    {
+      //printf("[%d] = %s\n", index, temp_s);
+      if (index <= max_elem_size - 1)
+        dst[index] = (KEYVALUE*)temp_kv;
+      index++;
+    }
+    else
+      break;
+  }
+}
 
 // PERCENT ENCODE TABLE
 static char PERCENT_ENCODE_TABLE[66] = {
@@ -73,9 +139,14 @@ void tt_util_generate_nonce(char* dst, int length)
 }
 
 #define PEN(x) tt_util_percent_encode(x)
+#define SET_KV(obj, k, v)             \
+  do {                                \
+    obj = &(KEYVALUE){ k, v};         \
+    break;                            \
+  } while (1);            
 
 // FIXME: make this function generic to generate signature for any API that needs it...
-char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version)
+char* tt_util_generate_signature(enum e_http_method http_method, const char* request_url, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version, KEYVALUE** out_sorted_kv, int* out_sorted_kv_size, const KEYVALUE* first_param, va_list params)
 {
   char dst_result_signature_str[BUFFER_RESULT_SIZE+1];
   // our final result string
@@ -87,25 +158,83 @@ char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, c
   // convert timestamp to string
   snprintf(temp_timestamp_str, sizeof(temp_timestamp_str), "%ld", timestamp);
 
-  // store result from percent encoded from each one
-  char* oauth_consumer_key_ptr = PEN(oauth_consumer_key);
-  char* oauth_nonce_ptr = PEN(oauth_nonce);
-  char* oauth_signature_method_ptr = PEN(oauth_signature_method);
-  char* temp_timestamp_str_ptr = PEN(temp_timestamp_str);
-  char* oauth_token_ptr = PEN(oauth_token);
-  char* oauth_version_ptr = PEN(oauth_version);
-  char* status_ptr = PEN(status);
+  // get  the total elements inside input variable list
+  int params_count = va_func_total(first_param, params);
+  // define enough array to hold all of required oauth parameters, and additional parameters
+  KEYVALUE* all_params_kv_st[6 + params_count];
+  memset(all_params_kv_st, 0, sizeof(all_params_kv_st));
 
-  snprintf(dst_result_signature_str, BUFFER_RESULT_SIZE, "oauth_consumer_key=%s&oauth_nonce=%s&oauth_signature_method=%s&oauth_timestamp=%s&oauth_token=%s&oauth_version=%s&status=%s", oauth_consumer_key_ptr, oauth_nonce_ptr, oauth_signature_method_ptr, temp_timestamp_str_ptr, oauth_token_ptr, oauth_version_ptr, status_ptr);
+  // collect required oauth parameters
+  SET_KV(all_params_kv_st[0], "oauth_consumer_key", (char*)oauth_consumer_key)
+  SET_KV(all_params_kv_st[1], "oauth_nonce", (char*)oauth_nonce)
+  SET_KV(all_params_kv_st[2], "oauth_signature_method", "HMAC-SHA1")
+  SET_KV(all_params_kv_st[3], "oauth_timestamp", (char*)temp_timestamp_str)
+  SET_KV(all_params_kv_st[4], "oauth_token", (char*)oauth_token)
+  SET_KV(all_params_kv_st[5], "oauth_version", "1.0")
 
-  // safe to free those string pointers now
-  free(oauth_consumer_key_ptr);
-  free(oauth_nonce_ptr);
-  free(oauth_signature_method_ptr);
-  free(temp_timestamp_str_ptr);
-  free(oauth_token_ptr);
-  free(oauth_version_ptr);
-  free(status_ptr);
+  // collect all additional parameters
+  if (params_count > 0)
+  {
+    va_func_collect(first_param, params, all_params_kv_st + 6, params_count);
+  }
+  
+  // sort lexi
+  const int total_params_count = 6 + params_count;
+  const KEYVALUE** c_all_params_kv_st = (const KEYVALUE**)all_params_kv_st;
+  KEYVALUE* sorted_params = tt_util_sort_lexi(c_all_params_kv_st, total_params_count);
+  // if need to return result
+  if (out_sorted_kv != NULL)
+  {
+    // now this is user's responsibility to free it and its elements
+    *out_sorted_kv = sorted_params;
+  }
+  if (out_sorted_kv_size != NULL)
+  {
+    *out_sorted_kv_size = total_params_count;
+  }
+
+  // percent encode sorted key & value result, and build a result string
+  int dst_index = 0;
+  for (int i=0; i< total_params_count; i++)
+  {
+    char* pen_key_s = PEN(sorted_params[i].key);
+    char* pen_value_s = PEN(sorted_params[i].value);
+
+    // form the string to append to result string
+    snprintf(dst_result_signature_str + dst_index, BUFFER_RESULT_SIZE - dst_index, "%s=%s", pen_key_s, pen_value_s);
+    // proceed index
+    dst_index += strlen(pen_key_s) + 1 + strlen(pen_value_s);
+
+    // if it's not the last one then append with &
+    if (i < total_params_count-1)
+    {
+      snprintf(dst_result_signature_str + dst_index, BUFFER_RESULT_SIZE - dst_index, "&");
+      dst_index++;
+    }
+
+    // free percent encoded strings
+    free(pen_key_s);
+    free(pen_value_s);
+
+    // if no need to return result, then free attributes of KEYVALUE
+    if (out_sorted_kv == NULL)
+    {
+      // free key & value attribute, and KEYVALUE struct
+      // we won't be revisit this item again, so it's safe to free it now
+      free(sorted_params[i].key);
+      sorted_params[i].key = NULL;
+      free(sorted_params[i].value);
+      sorted_params[i].value = NULL;
+    }
+  }
+  
+  // if no need to return result, then free whole sorted kv
+  if (out_sorted_kv == NULL)
+  {
+    // free the whole sorted params
+    free(sorted_params);
+    sorted_params = NULL;
+  }
 
   // creating a signature base string
   char* result_signature_base_string = malloc(sizeof(char) * (BUFFER_RESULT_SIZE+1));
@@ -265,4 +394,75 @@ const char* tt_util_getenv_value(enum e_env_name name)
   // otherwise
   // (should not happen)
   return NULL;
+}
+
+// size of buffer string element
+#define LEXI_BUFFER_SIZE 255
+KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
+{
+#if defined DEBUG && 0
+  for (int i=0; i<size; i++)
+  {
+    printf("[%d] { key: %s, value: %s }\n", i, data[i]->key, data[i]->value);
+  }
+  printf("\n");
+#endif
+
+  // dynamically allocate new buffer string to hold sorted string result
+  KEYVALUE* new_data_buffer = malloc(size * sizeof(KEYVALUE));
+  memset(new_data_buffer, 0, size * sizeof(KEYVALUE));
+  for (int i=0; i<size; i++)
+  {
+    // dynamically create struct for this index position
+    new_data_buffer[i].key = malloc(LEXI_BUFFER_SIZE+1);
+    new_data_buffer[i].value = malloc(LEXI_BUFFER_SIZE+1);
+
+    // copy string to key
+    strncpy(new_data_buffer[i].key, data[i]->key, LEXI_BUFFER_SIZE);
+    // copy string to value
+    strncpy(new_data_buffer[i].value, data[i]->value, LEXI_BUFFER_SIZE);
+  }
+
+  int n = size;
+  // temp kv used to reference to existing data
+  KEYVALUE temp_kv;
+
+  do {
+    int newn = 0;
+    for (int i=1; i<n; i++)
+    {
+      // base majorly to the key
+      if (strcmp(new_data_buffer[i-1].key, new_data_buffer[i].key) > 0)
+      {
+        // set NULL to temp struct
+        temp_kv.key = NULL;
+        temp_kv.value = NULL;
+
+        // copy key from data[i] to temp
+        strncpy(temp_kv.key, new_data_buffer[i].key, LEXI_BUFFER_SIZE);
+        // copy value from data[i] to temp
+        strncpy(temp_kv.value, new_data_buffer[i].value, LEXI_BUFFER_SIZE);
+        
+        // copy key & value from data[i-1] to data[i]
+        strncpy(new_data_buffer[i].key, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
+        strncpy(new_data_buffer[i].value, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
+
+        // copy temp to data[i-1]
+        strncpy(new_data_buffer[i-1].key, temp_kv.key, LEXI_BUFFER_SIZE);
+        strncpy(new_data_buffer[i-1].value, temp_kv.value, LEXI_BUFFER_SIZE);
+
+        newn = i;
+      }
+    }
+    n = newn;
+  } while (n > 1);
+
+#if defined DEBUG && 0
+  for (int i=0; i<size; i++)
+  {
+    printf("[%d] { key: %s, value: %s }\n", i, new_data_buffer[i].key, new_data_buffer[i].value);
+  }
+#endif
+
+  return new_data_buffer;
 }

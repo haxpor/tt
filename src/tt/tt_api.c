@@ -18,11 +18,29 @@ struct api_response_st_
   char error_message[255];
 };
 
+enum api_request_type
+{
+  API_REQUEST_TYPE_POST_TWEET
+};
+
+///
+/// Initialize defaults value for res_st
+///
+/// \param res_st api response structure. See api_response_st_.
+///
 static void init_defauts_api_response_st_(struct api_response_st_* res_st);
-// worker function to actually make HTTP request
-// FIXME: Make this function generic and support other twitter's API
-// error_code - to receive error back if any. NULL to not receive any error code back in case of error.
-static void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, struct api_response_st_* res_st, char* param, ...);
+
+///
+/// worker function to actually make HTTP request
+/// api result will be written into res_st.
+///
+/// \param http_method http method. See enum e_http_method
+/// \param base_url base url of api to make request to
+/// \param res_st api response structure. See api_response_st_.
+/// \param param additional parameter list, end the list with NULL.
+/// 
+static void do_http_request(enum e_http_method http_method, const char* base_url, enum api_request_type req_type, struct api_response_st_* res_st, const KEYVALUE* param, ...);
+
 static size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp);
 
 void init_defauts_api_response_st_(struct api_response_st_* res_st)
@@ -65,7 +83,7 @@ size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp)
   return size * nmemb;
 }
 
-void do_http_request(enum e_http_method http_method, const char* base_url, const char* status, struct api_response_st_* res_st, char* param, ...)
+void do_http_request(enum e_http_method http_method, const char* base_url, enum api_request_type req_type, struct api_response_st_* res_st, const KEYVALUE* param, ...)
 {
   CURL* curl;
 
@@ -90,56 +108,42 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   // get timestamp
   time_t timestamp = tt_util_get_current_timestamp();
 
+  // form the variable list of input additional parameters list
+  va_list param_va;
+  va_start(param_va, param);
+
+  // we also want to get sorted kv result back from signature generation
+  KEYVALUE* sorted_kv = NULL;
+  int sorted_kv_size = 0;
   // get signature base string
-  char* signature_base_str = tt_util_generate_signature_for_updateapi(HTTP_METHOD_POST,
+  char* signature_base_str = tt_util_generate_signature(HTTP_METHOD_POST,
     base_url,
-    status,
     consumer_key,
     nonce,
     "HMAC-SHA1",
     timestamp,
     access_token,
-    "1.0");
+    "1.0",
+    &sorted_kv,
+    &sorted_kv_size,
+    param,  // we also need to send in the first parameter
+    param_va);
 
-  //printf("signature base string = %s\n", signature_base_str);
+  // end variable list
+  va_end(param_va);
 
   // get signing key
   const char* consumer_secret = tt_util_getenv_value(tt_env_name_CONSUMER_SECRET);
   const char* oauth_secret = tt_util_getenv_value(tt_env_name_ACCESS_TOKEN_SECRET);
 
   char* signingkey = tt_util_get_signingkey(consumer_secret, oauth_secret);
-  //printf("signing key = %s\n", signingkey);
 
   // apply with hmac-sha1 algorithm
   unsigned char* signature_digest = tt_util_hmac_sha1(signature_base_str, signingkey);
-  //printf("signature = %s\n", signature_digest);
-  //for (int i=0; i<20; i++)
-  //{
-  //  printf("%02X", signature_digest[i]);
-  //}
-  //printf("\n");
 
   // compute base64
   // size is fixed, it's 20 bytes result from hmac-sha1
   char* signature = tt_util_base64(signature_digest, 20);
-  //printf("base64 = %s [length %lu]\n", signature, strlen(signature));
-
-  //printf("\n\nparameters in use\n");
-  //printf("- oauth_consumer_key = %s\n", consumer_key);
-  //printf("- oauth_nonce = %s\n", nonce);
-  //printf("- oauth_signature (raw) = %s\n", signature);
-  //char* tt = tt_util_percent_encode(signature);
-  //printf("- oauth_signature = %s\n", tt);
-  //printf("- oauth_signature_method = %s\n", "HMAC-SHA1");
-  //printf("- oauth_timestamp = %ld\n", timestamp);
-  //printf("- oauth_tokoen = %s\n", access_token);
-  //printf("- oauth_version = %s\n\n", "1.0");
-  //free(tt);
-
-  // print header string
-  //char cmd_str[1024+1];
-  //memset(cmd_str, 0, sizeof(cmd_str));
-  //snprintf(cmd_str, sizeof(cmd_str) - 1, "Authorization: OAuth oauth_consumer_key=\"%s\", oauth_nonce=\"%s\", oauth_signature=\"%s\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"%ld\", oauth_token=\"%s\", oauth_version=\"1.0\"", consumer_key, nonce, pen_signature, timestamp, access_token);
 
   // percent encode signature
   char* pen_signature = tt_util_percent_encode(signature);
@@ -149,41 +153,51 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   memset(authoriz_header, 0, sizeof(authoriz_header));
   snprintf(authoriz_header, sizeof(authoriz_header) - 1, "Authorization: OAuth oauth_consumer_key=\"%s\", oauth_nonce=\"%s\", oauth_signature=\"%s\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"%ld\", oauth_token=\"%s\", oauth_version=\"1.0\"", consumer_key, nonce, pen_signature, timestamp, access_token);
 
-  // print curl command
-  //char* pen_status = tt_util_percent_encode(status);
-  //printf("curl -X POST 'https://api.twitter.com/1.1/statuses/update.json?status=%s' -H '%s'\n", pen_status, cmd_str);
-  //free(pen_status);
-
   // free returned string
   free(signature_base_str);
   free(signingkey);
   free(signature);
   free(pen_signature);
 
-  //printf("Authorization header = %s\n", authoriz_header);
-
   // make request with curl
   struct curl_slist *chunk = NULL;
   chunk = curl_slist_append(chunk, authoriz_header);
   CURLcode res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
   
-  // percent encode status
-  char* pen_status = tt_util_percent_encode(status);
+  if (req_type == API_REQUEST_TYPE_POST_TWEET)
+  {
+    // percent encode status
+    // find key "status" and get its value
+    const char* val = NULL;
 
-  char url_buff[URL_BUFF_LEN+1];
-  memset(url_buff, 0, sizeof(url_buff));
-  // TODO: Support other api by append all parameters here after url ...
-  snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
+    for (int i=0; i<sorted_kv_size; i++)
+    {
+      if (strcmp(sorted_kv[i].key, "status") == 0)
+      {
+        val = sorted_kv[i].value;
+        break;
+      }
+    }
 
-  //printf("url = %s\n", url_buff);
+    char* pen_status = tt_util_percent_encode(val);
 
-  free(pen_status);
+    char url_buff[URL_BUFF_LEN+1];
+    memset(url_buff, 0, sizeof(url_buff));
+    snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
 
-  curl_easy_setopt(curl, CURLOPT_URL, url_buff);
-  curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
+    free(pen_status);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url_buff);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
+  }
+  else
+  {
+    fprintf(stderr, "Unknown request type to Twitter API");
+    goto CLEANUP;
+  }
 
   res = curl_easy_perform(curl);
   // check for errors
@@ -191,6 +205,23 @@ void do_http_request(enum e_http_method http_method, const char* base_url, const
   {
     fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
   }
+
+CLEANUP:
+
+  for (int i=0; i<sorted_kv_size; i++)
+  {
+    // free sorted parameters
+    // free key & value attribute, and KEYVALUE struct
+    // we won't be revisit this item again, so it's safe to free it now
+    free(sorted_kv[i].key);
+    sorted_kv[i].key = NULL;
+    free(sorted_kv[i].value);
+    sorted_kv[i].value = NULL;
+  }
+
+  // free the whole sorted params
+  free(sorted_kv);
+  sorted_kv = NULL;
 
   // clean up
   curl_easy_cleanup(curl);
@@ -202,7 +233,8 @@ void tt_api_update_status(const char* status, int* error_code)
   struct api_response_st_ res_st;
   init_defauts_api_response_st_(&res_st);
 
-  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", status, &res_st, NULL);
+
+  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", API_REQUEST_TYPE_POST_TWEET, &res_st, &(KEYVALUE){"status", (char*)status}, NULL);
 
   // if success, then 
   if (res_st.error_code == 0)
