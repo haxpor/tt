@@ -16,4 +16,11 @@ enum e_env_name
   tt_env_name_ACCESS_TOKEN_SECRET
 };
 
+struct key_value_ptr_st
+{
+  char* key;
+  char* value;
+};
+typedef struct key_value_ptr_st KEYVALUE;
+
 #endif

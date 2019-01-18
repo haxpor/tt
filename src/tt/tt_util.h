@@ -2,6 +2,7 @@
 #define util_h_
 
 #include <time.h>
+#include <stdarg.h>
 #include "tt_types.h"
 
 #define tt_init() tt_util_init()
@@ -47,9 +48,13 @@ extern time_t tt_util_get_current_timestamp();
 /// \param timestamp Unix timestamp in seconds
 /// \param oauth_token Oauth token
 /// \param oauth_version Oauth version
+/// \param out_sorted_kv result of sorted KEYVALUE. Set to NULL if no intention to receive result back
+/// \param out_sorted_kv_size result size of sorted KEYVALUE. Set to NULL if no intention to receive size back
+/// \param first parameter of params (variable list)
+/// \param params additional parameters
 /// \return Generated signature string
 ///
-extern char* tt_util_generate_signature_for_updateapi(enum e_http_method http_method, const char* request_url, const char* status, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version);
+extern char* tt_util_generate_signature(enum e_http_method http_method, const char* request_url, const char* oauth_consumer_key, const char* oauth_nonce, const char* oauth_signature_method, time_t timestamp, const char* oauth_token, const char* oauth_version, KEYVALUE** out_sorted_kv, int* out_sorted_kv_size, const KEYVALUE* first_param, va_list params);
 
 ///
 /// Do a percent encode on input string.
@@ -90,5 +95,17 @@ extern unsigned char* tt_util_hmac_sha1(const char* data, const char* key);
 /// \return Dynamically allocated string on the heap.
 ///
 extern char* tt_util_base64(const unsigned char* buffer, size_t length);
+
+///
+/// Sort input array of string lexigraphically.
+/// It will create a new buffer dynamically with large enough buffer size for each KEYVALUE struct item.
+///
+/// Note: User has to free the returned KEYVALUE and its attributes when done using it.
+///
+/// \param data array of KEYVALUE to be sorted
+/// \param size size of input data array
+/// \return Pointer to the first sorted KEYVALUE array
+///
+extern KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size);
 
 #endif
