@@ -53,7 +53,9 @@ int va_func_total(const KEYVALUE* first_kv, va_list va)
     param_kv = va_arg(va, const KEYVALUE*);
 
     if (param_kv != NULL)
+    {
       count++;
+    }
     else
       break;
   }
@@ -66,7 +68,6 @@ void va_func_collect(const KEYVALUE* first_param, va_list va, KEYVALUE* dst[], i
   if (first_param == NULL)
     return;
 
-  //printf("[0] = %s\n", first_param);
   // store first parameter at the destination
   dst[0] = (KEYVALUE*)first_param;
 
@@ -77,7 +78,6 @@ void va_func_collect(const KEYVALUE* first_param, va_list va, KEYVALUE* dst[], i
     temp_kv = va_arg(va, const KEYVALUE*);
     if (temp_kv != NULL)
     {
-      //printf("[%d] = %s\n", index, temp_s);
       if (index <= max_elem_size - 1)
         dst[index] = (KEYVALUE*)temp_kv;
       index++;
@@ -159,7 +159,11 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   snprintf(temp_timestamp_str, sizeof(temp_timestamp_str), "%ld", timestamp);
 
   // get  the total elements inside input variable list
-  int params_count = va_func_total(first_param, params);
+  va_list va_copy;
+  va_copy(va_copy, params);
+  int params_count = va_func_total(first_param, va_copy);
+  va_end(va_copy);
+
   // define enough array to hold all of required oauth parameters, and additional parameters
   KEYVALUE* all_params_kv_st[6 + params_count];
   memset(all_params_kv_st, 0, sizeof(all_params_kv_st));
@@ -175,7 +179,10 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   // collect all additional parameters
   if (params_count > 0)
   {
-    va_func_collect(first_param, params, all_params_kv_st + 6, params_count);
+    va_list va_copy;
+    va_copy(va_copy, params);
+    va_func_collect(first_param, va_copy, all_params_kv_st + 6, params_count);
+    va_end(va_copy);
   }
   
   // sort lexi
@@ -426,6 +433,9 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
   int n = size;
   // temp kv used to reference to existing data
   KEYVALUE temp_kv;
+  // allocate new char array for temp
+  temp_kv.key = malloc(LEXI_BUFFER_SIZE+1);
+  temp_kv.value = malloc(LEXI_BUFFER_SIZE+1);
 
   do {
     int newn = 0;
@@ -434,10 +444,6 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
       // base majorly to the key
       if (strcmp(new_data_buffer[i-1].key, new_data_buffer[i].key) > 0)
       {
-        // set NULL to temp struct
-        temp_kv.key = NULL;
-        temp_kv.value = NULL;
-
         // copy key from data[i] to temp
         strncpy(temp_kv.key, new_data_buffer[i].key, LEXI_BUFFER_SIZE);
         // copy value from data[i] to temp
@@ -445,7 +451,7 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
         
         // copy key & value from data[i-1] to data[i]
         strncpy(new_data_buffer[i].key, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
-        strncpy(new_data_buffer[i].value, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
+        strncpy(new_data_buffer[i].value, new_data_buffer[i-1].value, LEXI_BUFFER_SIZE);
 
         // copy temp to data[i-1]
         strncpy(new_data_buffer[i-1].key, temp_kv.key, LEXI_BUFFER_SIZE);
@@ -457,6 +463,12 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
     n = newn;
   } while (n > 1);
 
+  // free allocated stuff of temp
+  free(temp_kv.key);
+  free(temp_kv.value);
+  temp_kv.key = NULL;
+  temp_kv.value = NULL;
+
 #if defined DEBUG && 0
   for (int i=0; i<size; i++)
   {
@@ -465,4 +477,69 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
 #endif
 
   return new_data_buffer;
+}
+
+long tt_util_get_filesize(const char* file_path)
+{
+  FILE* file = fopen(file_path, "rb");
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error, cannot open the file %s\n", file_path);
+    // -1 for returned error case
+    return -1;
+  }
+
+  // seek to the end of hte file
+  fseek(file, 0, SEEK_END);
+
+  // get total bytes of file size
+  long file_size = ftell(file);
+
+  // close the file
+  fclose(file);
+
+  return file_size;
+}
+
+#define FILENAME_BUFFER_SIZE 255
+const char* tt_util_get_fileextension(const char* file_path)
+{
+  char* token = NULL;
+  char* last_token = NULL;
+
+  token = strtok((char*)file_path, "/");
+  // pre-check that at least found something
+  if (token == NULL)
+  {
+    return NULL;
+  }
+
+  while (token != NULL)
+  {
+    printf("%s\n", token);
+    last_token = token;
+
+    token = strtok(NULL, "/");
+  }
+  
+  // at this point we get the last token which is image file name included extension
+  printf("--\n");
+
+  token = strtok(last_token, ".");
+  // check that at least there is one dot (definitely for file name)
+  if (token == NULL)
+  {
+    return NULL;
+  }
+
+  while (token != NULL)
+  {
+    printf("%s\n", token);
+    last_token = token;
+    token = strtok(NULL, ".");
+  }
+
+  printf(":file extension = %s\n", last_token);
+
+  return last_token;
 }

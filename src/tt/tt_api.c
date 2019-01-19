@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <curl/curl.h>
 #include "tt_util.h"
 #include "tt_types.h"
@@ -12,15 +13,17 @@
 #define AUTHORIZATION_HEADER_BUFF_LEN 1024
 #define URL_BUFF_LEN 1024
 
-struct api_response_st_
-{
-  int error_code;
-  char error_message[255];
-};
-
 enum api_request_type
 {
-  API_REQUEST_TYPE_POST_TWEET
+  API_REQUEST_TYPE_POST_TWEET,
+  API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE
+};
+
+struct api_response_st_
+{
+  enum api_request_type request_type;
+  int error_code;
+  char error_message[255];
 };
 
 ///
@@ -28,7 +31,7 @@ enum api_request_type
 ///
 /// \param res_st api response structure. See api_response_st_.
 ///
-static void init_defauts_api_response_st_(struct api_response_st_* res_st);
+static void init_defaults_api_response_st_(struct api_response_st_* res_st);
 
 ///
 /// worker function to actually make HTTP request
@@ -43,7 +46,7 @@ static void do_http_request(enum e_http_method http_method, const char* base_url
 
 static size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp);
 
-void init_defauts_api_response_st_(struct api_response_st_* res_st)
+void init_defaults_api_response_st_(struct api_response_st_* res_st)
 {
   // 0 means success initially
   res_st->error_code = 0;
@@ -163,7 +166,7 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
   struct curl_slist *chunk = NULL;
   chunk = curl_slist_append(chunk, authoriz_header);
   CURLcode res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-  
+
   if (req_type == API_REQUEST_TYPE_POST_TWEET)
   {
     // percent encode status
@@ -186,6 +189,54 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
 
     free(pen_status);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url_buff);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
+  }
+  else if (req_type == API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE)
+  {
+    // will save string from sorted array then fill in these variables
+    const char* command_ptr = NULL;
+    const char* total_bytes_ptr = NULL;
+    const char* media_type_ptr = NULL;
+
+    bool command_cmp_checked = false;
+    bool total_bytes_cmp_checked = false;
+    bool media_type_cmp_checked = false;
+
+    for (int i=0; i<sorted_kv_size; i++)
+    {
+      if (!command_cmp_checked && strcmp(sorted_kv[i].key, "command") == 0)
+      {
+        command_ptr = sorted_kv[i].value;
+        command_cmp_checked = true;
+      }
+      else if (!total_bytes_cmp_checked && strcmp(sorted_kv[i].key, "total_bytes") == 0)
+      {
+        total_bytes_ptr = sorted_kv[i].value;
+        total_bytes_cmp_checked = true;
+      }
+      else if (!media_type_cmp_checked && strcmp(sorted_kv[i].key, "media_type") == 0)
+      {
+        media_type_ptr = sorted_kv[i].value;
+        media_type_cmp_checked = true;
+      }
+    }
+
+    // the only value we neee to pay attention to is media_type
+    // we need to percent encode it
+    char* pen_media_type = tt_util_percent_encode(media_type_ptr);
+
+    char url_buff[URL_BUFF_LEN+1];
+    memset(url_buff, 0, sizeof(url_buff));
+    snprintf(url_buff, sizeof(url_buff), "%s?command=%s&total_bytes=%s&media_type=%s", base_url, command_ptr, total_bytes_ptr, pen_media_type);
+
+    free(pen_media_type);
+
+    printf("url = %s\n", url_buff);
 
     curl_easy_setopt(curl, CURLOPT_URL, url_buff);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
@@ -231,8 +282,8 @@ CLEANUP:
 void tt_api_update_status(const char* status, int* error_code)
 {
   struct api_response_st_ res_st;
-  init_defauts_api_response_st_(&res_st);
-
+  init_defaults_api_response_st_(&res_st);
+  res_st.request_type = API_REQUEST_TYPE_POST_TWEET;
 
   do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", API_REQUEST_TYPE_POST_TWEET, &res_st, &(KEYVALUE){"status", (char*)status}, NULL);
 
@@ -240,5 +291,49 @@ void tt_api_update_status(const char* status, int* error_code)
   if (res_st.error_code == 0)
   {
     printf("Tweeted done\n");
+  }
+}
+
+void tt_api_update_status_with_image(const char* status, const char* image_path, int* error_code)
+{
+  struct api_response_st_ res_st;
+  init_defaults_api_response_st_(&res_st);
+  res_st.request_type = API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE;
+  
+  // determine the size of the input file
+  long image_file_size = tt_util_get_filesize(image_path);
+  if (image_file_size == -1)
+  {
+    // error occurs
+    // TODO: should we also set error_code's value before returning?
+    return;
+  }
+  // convert file size to string
+  // maximum file size supported by twitter is 5MB so 5e+6 in which total character length is 7
+  char file_size_s[7+1];
+  memset(file_size_s, 0, sizeof(file_size_s));
+  snprintf(file_size_s, sizeof(file_size_s)-1, "%ld", image_file_size);
+
+  // determine the input file extension
+  const char* file_extension = tt_util_get_fileextension(image_path);
+  if (file_extension == NULL)
+  {
+    // TODO: should we also set error_code's value before returning?
+    return;
+  }
+  printf("file extension = %s\n", file_extension);
+
+  // form media type string
+  char media_type_s[10+1];
+  memset(media_type_s, 0, sizeof(media_type_s));
+  snprintf(media_type_s, sizeof(media_type_s), "image/%s", file_extension);
+  
+  // send INIT command via API
+  do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE, &res_st, &(KEYVALUE){"command", "INIT"}, &(KEYVALUE){"total_bytes", file_size_s}, &(KEYVALUE){"media_type", media_type_s}, NULL);
+
+  // if success, then 
+  if (res_st.error_code == 0)
+  {
+    printf("Tweeted with image(s) done\n");
   }
 }
