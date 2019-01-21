@@ -44,11 +44,18 @@ int main(int argc, char* argv[])
       // check for supported flags
       if (strncmp(argv[3], "-f", 2) == 0)
       {
-        // get file path
-        const char* file_path = argv[4];
+        // define array to hold all possible of image paths
+        const int file_paths_size = argc-4;
+        const char* file_paths[file_paths_size];
 
-        // tweet to twitter with a single image
-        tt_update_status_with_image(status, file_path, &error_code);
+        // collect all image paths
+        for (int i=0; i<argc-4; i++)
+        {
+          file_paths[i] = argv[4 + i];
+        }
+
+        // tweet with image(s)
+        tt_update_status_with_images(status, &error_code, file_paths, file_paths_size);
         if (error_code > 0)
         {
           return -1;

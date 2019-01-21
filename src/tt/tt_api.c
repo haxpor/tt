@@ -493,118 +493,143 @@ void tt_api_update_status(const char* status, int* error_code)
   }
 }
 
-void tt_api_update_status_with_image(const char* status, const char* image_path, int* error_code)
+void tt_api_update_status_with_images(const char* status, int* error_code, const char* image_paths[], size_t image_paths_size)
 {
+  // define the maximum possible space for result of media_ids string
+  char media_ids_s[image_paths_size * 19 + 3 + 1];
+  memset(media_ids_s, 0, sizeof(media_ids_s));
+  // keep track of media_ids string current size
+  int media_ids_size = 0;
+
+  for (int i=0; i<image_paths_size; i++)
+  {
+    struct api_response_st_ res_st;
+    init_defaults_api_response_st_(&res_st);
+    // pre-allocate the buffer just 1 byte, will grow as need later
+    res_st.contents = malloc(1);
+    memset(res_st.contents, 0, 1);
+
+    // determine the size of the input file
+    long image_file_size = tt_util_get_filesize(image_paths[i]);
+    if (image_file_size == -1)
+    {
+      // error occurs
+      // TODO: should we also set error_code's value before returning?
+      return;
+    }
+    // convert file size to string
+    // maximum file size supported by twitter is 5MB so 5e+6 in which total character length is 7
+    char file_size_s[7+1];
+    memset(file_size_s, 0, sizeof(file_size_s));
+    snprintf(file_size_s, sizeof(file_size_s), "%ld", image_file_size);
+
+    // determine the input file extension
+    const char* file_extension = tt_util_get_fileextension(image_paths[i]);
+    if (file_extension == NULL)
+    {
+      // TODO: should we also set error_code's value before returning?
+      return;
+    }
+
+    // form media type string
+    char media_type_s[10+1];
+    memset(media_type_s, 0, sizeof(media_type_s));
+    snprintf(media_type_s, sizeof(media_type_s), "image/%s", file_extension);
+
+    // handling in steps for tweeting with image
+    // 1. INIT command via API
+    do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_INIT, &res_st, &(KEYVALUE){"command", "INIT", strlen("INIT")}, &(KEYVALUE){"total_bytes", file_size_s, strlen(file_size_s)}, &(KEYVALUE){"media_type", media_type_s, strlen(media_type_s)}, NULL);
+    // check for any error
+    if (res_st.error_code != 0)
+    {
+      fprintf(stderr, "INIT phase error. Code %d : %s\n", res_st.error_code, res_st.error_message);
+    }
+
+    // get media_id
+    char media_id[32];
+    memset(media_id, 0, sizeof(media_id));  
+    int ret = mjson_get_string(res_st.contents, strlen(res_st.contents), "$.media_id_string", media_id, sizeof(media_id));
+    // if media_id_string field not found, it will return 0
+    if (ret == 0)
+    {
+      fprintf(stderr, "Cannot find media_id information");
+      return;
+    }
+
+    // free contents memory as used by previous request
+    free(res_st.contents);
+    // clear api response structure, and reuse it
+    init_defaults_api_response_st_(&res_st);
+    // allocate new memory buffer 
+    res_st.contents = malloc(1);
+    memset(res_st.contents, 0, 1);
+     
+    res_st.userdata = (void*)&image_file_size;
+
+    // 2. APPEND command via API
+    // read file as binary data
+    unsigned char file_buffer[image_file_size];
+    if (tt_util_read_fileb(image_paths[i], file_buffer, image_file_size) <= 0)
+    {
+      return;
+    }
+
+    // create media struct to piggy back as user data
+    struct media_st media_piggyback;
+    media_piggyback.data = (const char*)file_buffer;
+    media_piggyback.size = image_file_size;
+    // set as piggyback userdata for response struct
+    res_st.userdata = (void*)&media_piggyback;
+
+    // note: no need to send in KEYVALUE of "media" field - it's binary value content which will be sent via multipart-form
+    do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_APPEND, &res_st, &(KEYVALUE){"command", "APPEND", strlen("APPEND")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, &(KEYVALUE){"segment_index", "0", strlen("0")}, NULL);
+    // check for any error
+    if (res_st.error_code != 0)
+    {
+      return;
+    }
+
+    // clear response struct then reuse it
+    free(res_st.contents);
+    init_defaults_api_response_st_(&res_st);
+    // allocate new memory buffer
+    res_st.contents = malloc(1);
+    memset(res_st.contents, 0, 1);
+
+    // 3. FINALIZE command via API
+    do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_FINALIZE, &res_st, &(KEYVALUE){"command", "FINALIZE", strlen("FINALIZE")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, NULL);
+    // check for any error
+    if (res_st.error_code != 0)
+    {
+      return;
+    }
+
+    // things went fine, append this media_id to result media_ids string
+    if (i == 0)
+    {
+      snprintf(media_ids_s + media_ids_size, sizeof(media_id), "%s", media_id);
+
+      // update the size of media_ids string as we will append next string to it
+      media_ids_size += strlen(media_id);
+    }
+    else
+    {
+      snprintf(media_ids_s + media_ids_size, sizeof(media_id) + 1, ",%s", media_id);
+
+      // update the size of media_ids string as we will append next string to it
+      media_ids_size += strlen(media_id) + 1;
+    }
+  }
+  
+  // create api response struct
   struct api_response_st_ res_st;
   init_defaults_api_response_st_(&res_st);
   // pre-allocate the buffer just 1 byte, will grow as need later
   res_st.contents = malloc(1);
   memset(res_st.contents, 0, 1);
-
-  // determine the size of the input file
-  long image_file_size = tt_util_get_filesize(image_path);
-  if (image_file_size == -1)
-  {
-    // error occurs
-    // TODO: should we also set error_code's value before returning?
-    return;
-  }
-  // convert file size to string
-  // maximum file size supported by twitter is 5MB so 5e+6 in which total character length is 7
-  char file_size_s[7+1];
-  memset(file_size_s, 0, sizeof(file_size_s));
-  snprintf(file_size_s, sizeof(file_size_s), "%ld", image_file_size);
-
-  // determine the input file extension
-  const char* file_extension = tt_util_get_fileextension(image_path);
-  if (file_extension == NULL)
-  {
-    // TODO: should we also set error_code's value before returning?
-    return;
-  }
-
-  // form media type string
-  char media_type_s[10+1];
-  memset(media_type_s, 0, sizeof(media_type_s));
-  snprintf(media_type_s, sizeof(media_type_s), "image/%s", file_extension);
-
-  // handling in steps for tweeting with image
-  // 1. INIT command via API
-  do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_INIT, &res_st, &(KEYVALUE){"command", "INIT", strlen("INIT")}, &(KEYVALUE){"total_bytes", file_size_s, strlen(file_size_s)}, &(KEYVALUE){"media_type", media_type_s, strlen(media_type_s)}, NULL);
-  // check for any error
-  if (res_st.error_code != 0)
-  {
-    fprintf(stderr, "INIT phase error. Code %d : %s\n", res_st.error_code, res_st.error_message);
-  }
-
-  // get media_id
-  char media_id[32];
-  memset(media_id, 0, sizeof(media_id));  
-  int ret = mjson_get_string(res_st.contents, strlen(res_st.contents), "$.media_id_string", media_id, sizeof(media_id));
-  // if media_id_string field not found, it will return 0
-  if (ret == 0)
-  {
-    fprintf(stderr, "Cannot find media_id information");
-    return;
-  }
-
-  // free contents memory as used by previous request
-  free(res_st.contents);
-  // clear api response structure, and reuse it
-  init_defaults_api_response_st_(&res_st);
-  // allocate new memory buffer 
-  res_st.contents = malloc(1);
-  memset(res_st.contents, 0, 1);
-   
-  res_st.userdata = (void*)&image_file_size;
-
-  // 2. APPEND command via API
-  // read file as binary data
-  unsigned char file_buffer[image_file_size];
-  if (tt_util_read_fileb(image_path, file_buffer, image_file_size) <= 0)
-  {
-    return;
-  }
-
-  // create media struct to piggy back as user data
-  struct media_st media_piggyback;
-  media_piggyback.data = (const char*)file_buffer;
-  media_piggyback.size = image_file_size;
-  // set as piggyback userdata for response struct
-  res_st.userdata = (void*)&media_piggyback;
-
-  // note: no need to send in KEYVALUE of "media" field - it's binary value content which will be sent via multipart-form
-  do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_APPEND, &res_st, &(KEYVALUE){"command", "APPEND", strlen("APPEND")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, &(KEYVALUE){"segment_index", "0", strlen("0")}, NULL);
-  // check for any error
-  if (res_st.error_code != 0)
-  {
-    return;
-  }
-
-  // clear response struct then reuse it
-  free(res_st.contents);
-  init_defaults_api_response_st_(&res_st);
-  // allocate new memory buffer
-  res_st.contents = malloc(1);
-  memset(res_st.contents, 0, 1);
-
-  // 3. FINALIZE command via API
-  do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_FINALIZE, &res_st, &(KEYVALUE){"command", "FINALIZE", strlen("FINALIZE")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, NULL);
-  // check for any error
-  if (res_st.error_code != 0)
-  {
-    return;
-  }
-
-  // clear response struct then reuse it
-  free(res_st.contents);
-  init_defaults_api_response_st_(&res_st);
-  // allocate new memory buffer
-  res_st.contents = malloc(1);
-  memset(res_st.contents, 0, 1);
   
   // Finally tweet
-  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", API_REQUEST_TYPE_POST_TWEET, &res_st, &(KEYVALUE){"status", (char*)status, strlen(status)}, &(KEYVALUE){"media_ids", media_id, strlen(media_id)},  NULL);
+  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", API_REQUEST_TYPE_POST_TWEET, &res_st, &(KEYVALUE){"status", (char*)status, strlen(status)}, &(KEYVALUE){"media_ids", media_ids_s, strlen(media_ids_s)},  NULL);
   // if success, then 
   if (res_st.error_code == 0)
   {
