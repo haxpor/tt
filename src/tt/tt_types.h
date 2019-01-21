@@ -20,6 +20,12 @@ struct key_value_ptr_st
 {
   char* key;
   char* value;
+
+  // size of value, although value is char pointer but in case it's not
+  // then use this size to get actual size of it
+  // 
+  // in case of null-terminated string, it's length of character in the string not include null-terminated character
+  size_t size;
 };
 typedef struct key_value_ptr_st KEYVALUE;
 

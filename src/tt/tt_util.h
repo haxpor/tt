@@ -62,9 +62,10 @@ extern char* tt_util_generate_signature(enum e_http_method http_method, const ch
 /// Note: User has responsibility to free the returned string as such result string is created dyanmically.
 ///
 /// \param string input string
+/// \param len length of string to process
 /// \return Percent encoded string.
 ///
-extern char* tt_util_percent_encode(const char* string);
+extern char* tt_util_percent_encode(const char* string, size_t len);
 
 ///
 /// Get the signing key.
@@ -119,9 +120,19 @@ extern long tt_util_get_filesize(const char* file_path);
 ///
 /// Get file extension from filepath.
 ///
-/// \param file_path file path.
+/// \param file_path file path. Assume it's null-terminated string.
 /// \return file extension without modifying the original case. Return NULL in case of not found anything.
 ///
 extern const char* tt_util_get_fileextension(const char* file_path);
+
+///
+/// Read file from file path as binary data then write into dst up to size.
+///
+/// \param file_path file path to read data from
+/// \param dst destination buffer to write binary data into. It's not null-terminated data.
+/// \param size size of read data to be written to
+/// \return number of bytes read, -1 in case of error, but it can be 0 in case of empty file.
+///
+extern size_t tt_util_read_fileb(const char* file_path, unsigned char* dst, int size);
 
 #endif
