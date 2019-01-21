@@ -45,6 +45,7 @@ Execute `make install` to install it on your system (at `/usr/local/bin`).
 
 - `tt update <tweet text>` - update tweet
 - `tt update <tweet text> -f /your/image/path` - update tweet along with a single image file
+- `tt update <tweet text> -f /your/image/path1 /your/image/path2 /your/image/pathN` - update tweet along with multiple images up to 4 as supported by Twitter
 
 # License
 
