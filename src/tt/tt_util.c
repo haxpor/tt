@@ -53,7 +53,9 @@ int va_func_total(const KEYVALUE* first_kv, va_list va)
     param_kv = va_arg(va, const KEYVALUE*);
 
     if (param_kv != NULL)
+    {
       count++;
+    }
     else
       break;
   }
@@ -66,7 +68,6 @@ void va_func_collect(const KEYVALUE* first_param, va_list va, KEYVALUE* dst[], i
   if (first_param == NULL)
     return;
 
-  //printf("[0] = %s\n", first_param);
   // store first parameter at the destination
   dst[0] = (KEYVALUE*)first_param;
 
@@ -77,7 +78,6 @@ void va_func_collect(const KEYVALUE* first_param, va_list va, KEYVALUE* dst[], i
     temp_kv = va_arg(va, const KEYVALUE*);
     if (temp_kv != NULL)
     {
-      //printf("[%d] = %s\n", index, temp_s);
       if (index <= max_elem_size - 1)
         dst[index] = (KEYVALUE*)temp_kv;
       index++;
@@ -138,10 +138,10 @@ void tt_util_generate_nonce(char* dst, int length)
 	}
 }
 
-#define PEN(x) tt_util_percent_encode(x)
-#define SET_KV(obj, k, v)             \
+#define PEN(x, len) tt_util_percent_encode(x, len)
+#define SET_KV(obj, k, v, s)             \
   do {                                \
-    obj = &(KEYVALUE){ k, v};         \
+    obj = &(KEYVALUE){ k, v, s};         \
     break;                            \
   } while (1);            
 
@@ -150,7 +150,7 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
 {
   char dst_result_signature_str[BUFFER_RESULT_SIZE+1];
   // our final result string
-  memset(dst_result_signature_str, 0, sizeof(char) * (BUFFER_RESULT_SIZE+1));
+  memset(dst_result_signature_str, 0, sizeof(dst_result_signature_str));
 
   // allocate space for timestamp preparing for conversion from long to string
   char temp_timestamp_str[10+1];
@@ -159,23 +159,30 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   snprintf(temp_timestamp_str, sizeof(temp_timestamp_str), "%ld", timestamp);
 
   // get  the total elements inside input variable list
-  int params_count = va_func_total(first_param, params);
+  va_list va_copy;
+  va_copy(va_copy, params);
+  int params_count = va_func_total(first_param, va_copy);
+  va_end(va_copy);
+
   // define enough array to hold all of required oauth parameters, and additional parameters
   KEYVALUE* all_params_kv_st[6 + params_count];
   memset(all_params_kv_st, 0, sizeof(all_params_kv_st));
 
   // collect required oauth parameters
-  SET_KV(all_params_kv_st[0], "oauth_consumer_key", (char*)oauth_consumer_key)
-  SET_KV(all_params_kv_st[1], "oauth_nonce", (char*)oauth_nonce)
-  SET_KV(all_params_kv_st[2], "oauth_signature_method", "HMAC-SHA1")
-  SET_KV(all_params_kv_st[3], "oauth_timestamp", (char*)temp_timestamp_str)
-  SET_KV(all_params_kv_st[4], "oauth_token", (char*)oauth_token)
-  SET_KV(all_params_kv_st[5], "oauth_version", "1.0")
+  SET_KV(all_params_kv_st[0], "oauth_consumer_key", (char*)oauth_consumer_key, strlen(oauth_consumer_key))
+  SET_KV(all_params_kv_st[1], "oauth_nonce", (char*)oauth_nonce, strlen(oauth_nonce))
+  SET_KV(all_params_kv_st[2], "oauth_signature_method", "HMAC-SHA1", strlen("HMAC-SHA1"))
+  SET_KV(all_params_kv_st[3], "oauth_timestamp", (char*)temp_timestamp_str, strlen(temp_timestamp_str))
+  SET_KV(all_params_kv_st[4], "oauth_token", (char*)oauth_token, strlen(oauth_token))
+  SET_KV(all_params_kv_st[5], "oauth_version", "1.0", strlen("1.0"))
 
   // collect all additional parameters
   if (params_count > 0)
   {
-    va_func_collect(first_param, params, all_params_kv_st + 6, params_count);
+    va_list va_copy;
+    va_copy(va_copy, params);
+    va_func_collect(first_param, va_copy, all_params_kv_st + 6, params_count);
+    va_end(va_copy);
   }
   
   // sort lexi
@@ -197,8 +204,8 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   int dst_index = 0;
   for (int i=0; i< total_params_count; i++)
   {
-    char* pen_key_s = PEN(sorted_params[i].key);
-    char* pen_value_s = PEN(sorted_params[i].value);
+    char* pen_key_s = PEN(sorted_params[i].key, strlen(sorted_params[i].key));
+    char* pen_value_s = PEN(sorted_params[i].value, sorted_params[i].size);
 
     // form the string to append to result string
     snprintf(dst_result_signature_str + dst_index, BUFFER_RESULT_SIZE - dst_index, "%s=%s", pen_key_s, pen_value_s);
@@ -253,8 +260,8 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   }
 
   // percent encode base url
-  char* base_url_ptr  = PEN(request_url);
-  char* pencoded_param_str_ptr = PEN(dst_result_signature_str);
+  char* base_url_ptr  = PEN(request_url, strlen(request_url));
+  char* pencoded_param_str_ptr = PEN(dst_result_signature_str, strlen(dst_result_signature_str));
 
   snprintf(result_signature_base_string, BUFFER_RESULT_SIZE, "%s&%s&%s", http_method_fixed, base_url_ptr, pencoded_param_str_ptr);
 
@@ -264,7 +271,7 @@ char* tt_util_generate_signature(enum e_http_method http_method, const char* req
   return result_signature_base_string;
 }
 
-char* tt_util_percent_encode(const char* string)
+char* tt_util_percent_encode(const char* string, size_t len)
 {
   // dynamically allocate string
   char* dst_percent_encoded_ = malloc(sizeof(char) * (BUFFER_SIZE+1));
@@ -274,11 +281,10 @@ char* tt_util_percent_encode(const char* string)
   // get the size of the table
   int table_size = sizeof(PERCENT_ENCODE_TABLE);
 
-  int size = strlen(string);
   int dst_i = 0;
 
   // loop through each byte in the input string
-  for (int i = 0; i < size; i++)
+  for (int i = 0; i < len; i++)
   {
     // get byte-value from this byte
     unsigned char byte_value = string[i];
@@ -325,8 +331,8 @@ char* tt_util_get_signingkey(const char* consumer_secret, const char* oauth_toke
   memset(signingkey_str, 0, sizeof(char) * (BUFFER_RESULT_SIGNINGKEY_SIZE+1));
 
   // percent encode
-  char* consumer_secret_pen_ptr = PEN(consumer_secret);
-  char* oauth_token_secret_pen_ptr = PEN(oauth_token_secret);
+  char* consumer_secret_pen_ptr = PEN(consumer_secret, strlen(consumer_secret));
+  char* oauth_token_secret_pen_ptr = PEN(oauth_token_secret, strlen(oauth_token_secret));
 
   snprintf(signingkey_str, BUFFER_RESULT_SIGNINGKEY_SIZE, "%s&%s", consumer_secret_pen_ptr, oauth_token_secret_pen_ptr);
 
@@ -400,10 +406,10 @@ const char* tt_util_getenv_value(enum e_env_name name)
 #define LEXI_BUFFER_SIZE 255
 KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
 {
-#if defined DEBUG && 0
+#if 0
   for (int i=0; i<size; i++)
   {
-    printf("[%d] { key: %s, value: %s }\n", i, data[i]->key, data[i]->value);
+    printf("[%d] { key: %s, value: %s, size: %zu }\n", i, data[i]->key, data[i]->value, data[i]->size);
   }
   printf("\n");
 #endif
@@ -418,14 +424,23 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
     new_data_buffer[i].value = malloc(LEXI_BUFFER_SIZE+1);
 
     // copy string to key
-    strncpy(new_data_buffer[i].key, data[i]->key, LEXI_BUFFER_SIZE);
+    memcpy(new_data_buffer[i].key, data[i]->key, strlen(data[i]->key));
+    new_data_buffer[i].key[strlen(data[i]->key)] = '\0';
+
     // copy string to value
-    strncpy(new_data_buffer[i].value, data[i]->value, LEXI_BUFFER_SIZE);
+    memcpy(new_data_buffer[i].value, data[i]->value, data[i]->size);
+    new_data_buffer[i].value[data[i]->size] = '\0';
+
+    // set the size of value
+    new_data_buffer[i].size = data[i]->size;
   }
 
   int n = size;
   // temp kv used to reference to existing data
   KEYVALUE temp_kv;
+  // allocate new char array for temp
+  temp_kv.key = malloc(LEXI_BUFFER_SIZE+1);
+  temp_kv.value = malloc(LEXI_BUFFER_SIZE+1);
 
   do {
     int newn = 0;
@@ -434,22 +449,36 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
       // base majorly to the key
       if (strcmp(new_data_buffer[i-1].key, new_data_buffer[i].key) > 0)
       {
-        // set NULL to temp struct
-        temp_kv.key = NULL;
-        temp_kv.value = NULL;
-
         // copy key from data[i] to temp
-        strncpy(temp_kv.key, new_data_buffer[i].key, LEXI_BUFFER_SIZE);
+        memcpy(temp_kv.key, new_data_buffer[i].key, strlen(new_data_buffer[i].key));
+        temp_kv.key[strlen(new_data_buffer[i].key)] = '\0';
+
         // copy value from data[i] to temp
-        strncpy(temp_kv.value, new_data_buffer[i].value, LEXI_BUFFER_SIZE);
+        memcpy(temp_kv.value, new_data_buffer[i].value, new_data_buffer[i].size);
+        temp_kv.value[new_data_buffer[i].size] = '\0';
+
+        // set size to temp
+        temp_kv.size = new_data_buffer[i].size;
         
         // copy key & value from data[i-1] to data[i]
-        strncpy(new_data_buffer[i].key, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
-        strncpy(new_data_buffer[i].value, new_data_buffer[i-1].key, LEXI_BUFFER_SIZE);
+        memcpy(new_data_buffer[i].key, new_data_buffer[i-1].key, strlen(new_data_buffer[i-1].key));
+        new_data_buffer[i].key[strlen(new_data_buffer[i-1].key)] = '\0';
+
+        memcpy(new_data_buffer[i].value, new_data_buffer[i-1].value, new_data_buffer[i-1].size);
+        new_data_buffer[i].value[new_data_buffer[i-1].size] = '\0';
+
+        // set size
+        new_data_buffer[i].size = new_data_buffer[i-1].size;
 
         // copy temp to data[i-1]
-        strncpy(new_data_buffer[i-1].key, temp_kv.key, LEXI_BUFFER_SIZE);
-        strncpy(new_data_buffer[i-1].value, temp_kv.value, LEXI_BUFFER_SIZE);
+        memcpy(new_data_buffer[i-1].key, temp_kv.key, strlen(temp_kv.key));
+        new_data_buffer[i-1].key[strlen(temp_kv.key)] = '\0';
+
+        memcpy(new_data_buffer[i-1].value, temp_kv.value, temp_kv.size);
+        new_data_buffer[i-1].value[temp_kv.size] = '\0';
+
+        // set size
+        new_data_buffer[i-1].size = temp_kv.size;
 
         newn = i;
       }
@@ -457,12 +486,102 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
     n = newn;
   } while (n > 1);
 
-#if defined DEBUG && 0
+  // free allocated stuff of temp
+  free(temp_kv.key);
+  free(temp_kv.value);
+  temp_kv.key = NULL;
+  temp_kv.value = NULL;
+
+#if 0
   for (int i=0; i<size; i++)
   {
-    printf("[%d] { key: %s, value: %s }\n", i, new_data_buffer[i].key, new_data_buffer[i].value);
+    printf("[%d] { key: %s, value: %s, size: %zu }\n", i, new_data_buffer[i].key, new_data_buffer[i].value, new_data_buffer[i].size);
   }
 #endif
 
   return new_data_buffer;
+}
+
+long tt_util_get_filesize(const char* file_path)
+{
+  FILE* file = fopen(file_path, "rb");
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error, cannot open the file %s\n", file_path);
+    // -1 for returned error case
+    return -1;
+  }
+
+  // seek to the end of hte file
+  fseek(file, 0, SEEK_END);
+
+  // get total bytes of file size
+  long file_size = ftell(file);
+
+  // close the file
+  fclose(file);
+
+  return file_size;
+}
+
+const char* tt_util_get_fileextension(const char* file_path)
+{
+  char* token = NULL;
+  char* last_token = NULL;
+
+  // copy input string to operate on as strtok will modify input string
+  const int file_path_len = strlen(file_path);
+  char temp_file_path[file_path_len+1];
+  memset(temp_file_path, 0, sizeof(temp_file_path));
+  strncpy(temp_file_path, file_path, file_path_len);
+
+  token = strtok(temp_file_path, "/");
+  // pre-check that at least found something
+  if (token == NULL)
+  {
+    return NULL;
+  }
+
+  while (token != NULL)
+  {
+    last_token = token;
+
+    token = strtok(NULL, "/");
+  }
+
+  token = strtok(last_token, ".");
+  // check that at least there is one dot (definitely for file name)
+  if (token == NULL)
+  {
+    return NULL;
+  }
+
+  while (token != NULL)
+  {
+    last_token = token;
+    token = strtok(NULL, ".");
+  }
+
+  return last_token;
+}
+
+size_t tt_util_read_fileb(const char* file_path, unsigned char* dst, int size)
+{
+  FILE* file = fopen(file_path, "rb");
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error cannot open file %s for read\n", file_path);
+    return -1;
+  }
+
+  size_t r = fread((void*)dst, size, 1, file);
+  if (r != 1)
+  {
+    // something wrong
+    fprintf(stderr, "Error reading file %s\n", file_path);
+    return -1;
+  }
+
+  fclose(file);
+  return size;
 }

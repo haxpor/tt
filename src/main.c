@@ -27,14 +27,42 @@ int main(int argc, char* argv[])
     // get status text
     const char* status = argv[2];
 
-    // receive error code back in case there is
+    // check if user enter additional paraemters but not enough argument there
+    if (argc > 3 && argc < 5)
+    {
+      fprintf(stderr, "Missing image path!\n");
+      return -1;
+    }
+
+     // receive error code back in case there is
     int error_code = 0;
 
-    // tweet to twitter
-    tt_update_status(status, &error_code);
-    if (error_code > 0)
+    // get additional parameters for the command
+    // in this case, it's image path
+    if (argc >= 5)
     {
-      return -1;
+      // check for supported flags
+      if (strncmp(argv[3], "-f", 2) == 0)
+      {
+        // get file path
+        const char* file_path = argv[4];
+
+        // tweet to twitter with a single image
+        tt_update_status_with_image(status, file_path, &error_code);
+        if (error_code > 0)
+        {
+          return -1;
+        }
+      }
+    }
+    else
+    {
+      // tweet to twitter
+      tt_update_status(status, &error_code);
+      if (error_code > 0)
+      {
+        return -1;
+      }
     }
   }
   
