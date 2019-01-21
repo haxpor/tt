@@ -406,8 +406,7 @@ const char* tt_util_getenv_value(enum e_env_name name)
 #define LEXI_BUFFER_SIZE 255
 KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
 {
-//#if defined DEBUG && 0
-#if 1
+#if 0
   for (int i=0; i<size; i++)
   {
     printf("[%d] { key: %s, value: %s, size: %zu }\n", i, data[i]->key, data[i]->value, data[i]->size);
@@ -493,8 +492,7 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
   temp_kv.key = NULL;
   temp_kv.value = NULL;
 
-//#if defined DEBUG && 0
-#if 1
+#if 0
   for (int i=0; i<size; i++)
   {
     printf("[%d] { key: %s, value: %s, size: %zu }\n", i, new_data_buffer[i].key, new_data_buffer[i].value, new_data_buffer[i].size);
@@ -564,8 +562,6 @@ const char* tt_util_get_fileextension(const char* file_path)
     token = strtok(NULL, ".");
   }
 
-  printf(":file extension = %s\n", last_token);
-
   return last_token;
 }
 
@@ -579,7 +575,6 @@ size_t tt_util_read_fileb(const char* file_path, unsigned char* dst, int size)
   }
 
   size_t r = fread((void*)dst, size, 1, file);
-  printf("r = %ld\n", r);
   if (r != 1)
   {
     // something wrong

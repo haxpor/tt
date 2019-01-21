@@ -46,7 +46,6 @@ int main(int argc, char* argv[])
       {
         // get file path
         const char* file_path = argv[4];
-        printf("file path = %s\n", file_path);
 
         // tweet to twitter with a single image
         tt_update_status_with_image(status, file_path, &error_code);

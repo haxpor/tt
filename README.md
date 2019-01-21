@@ -44,6 +44,7 @@ Execute `make install` to install it on your system (at `/usr/local/bin`).
 # Support Command
 
 - `tt update <tweet text>` - update tweet
+- `tt update <tweet text> -f /your/image/path` - update tweet along with a single image file
 
 # License
 

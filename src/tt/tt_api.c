@@ -27,6 +27,7 @@ enum api_request_type
 
 struct api_response_st_
 {
+  // error code of 0 means success, -1 mean internal library error, and others for twitter api's error codes
   int error_code;
   char error_message[255];
 
@@ -115,8 +116,6 @@ size_t receive_response(void* contents, size_t size, size_t nmemb, void* userp)
   // set null-terminated character at the end of the chunk-stream
   res_st->contents[res_st->contents_size] = 0;
 
-  printf("response chunk = %s\n", res_st->contents);
-
   return realsize;
 }
 
@@ -157,8 +156,6 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
   memset(nonce, 0, sizeof(nonce));
   tt_util_generate_nonce(nonce, NONCE_LENGTH);
 
-  printf("nonce\n");
-
   // get following values via environment variable
   // get consumer key
   const char* consumer_key = tt_util_getenv_value(tt_env_name_CONSUMER_KEY);
@@ -191,8 +188,6 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
 
   // end variable list
   va_end(param_va);
-
-  printf("after signature\n");
 
   // get signing key
   const char* consumer_secret = tt_util_getenv_value(tt_env_name_CONSUMER_SECRET);
@@ -230,14 +225,18 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
   {
     // percent encode status
     // find key "status" and get its value
-    const char* val = NULL;
+    const char* val = NULL;   // required
+    const char* media_ids = NULL; // optional
 
     for (int i=0; i<sorted_kv_size; i++)
     {
       if (strcmp(sorted_kv[i].key, "status") == 0)
       {
         val = sorted_kv[i].value;
-        break;
+      }
+      else if (strcmp(sorted_kv[i].key, "media_ids") == 0)
+      {
+        media_ids = sorted_kv[i].value;
       }
     }
 
@@ -245,7 +244,10 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
 
     char url_buff[URL_BUFF_LEN+1];
     memset(url_buff, 0, sizeof(url_buff));
-    snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
+    if (media_ids == NULL)
+      snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s", base_url, pen_status);
+    else
+      snprintf(url_buff, URL_BUFF_LEN, "%s?status=%s&media_ids=%s", base_url, pen_status, media_ids);
 
     free(pen_status);
 
@@ -391,19 +393,65 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     // after we send multipart-form then we check HTTP result code
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    printf("http_code = %ld\n", http_code);
     // if it's not 2xx which is series of success code, then there's error
     if (http_code < 200 || http_code > 299)
     {
       fprintf(stderr, "APPEND failed for media_id %s\n", media_id_ptr);
+
+      // set error code to -1 for internal library error (which is not twitter's error codes related)
+      res_st->error_code = -1;
     }
 
     curl_mime_free(form);
   }
+  else if (req_type == API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_FINALIZE)
+  {
+    // will save string from sorted array then fill in these variables
+    const char* command_ptr = NULL;
+    const char* media_id_ptr = NULL;
+
+    bool command_cmp_checked = false;
+    bool media_id_cmp_checked = false;
+
+    for (int i=0; i<sorted_kv_size; i++)
+    {
+      if (!command_cmp_checked && strcmp(sorted_kv[i].key, "command") == 0)
+      {
+        command_ptr = sorted_kv[i].value;
+        command_cmp_checked = true;
+      }
+      else if (!media_id_cmp_checked && strcmp(sorted_kv[i].key, "media_id") == 0)
+      {
+        media_id_ptr = sorted_kv[i].value;
+        media_id_cmp_checked = true;
+      }
+    }
+
+    // note: no need to add "media" parameter here as we will send it as multipart-data
+    char url_buff[URL_BUFF_LEN+1];
+    memset(url_buff, 0, sizeof(url_buff));
+    snprintf(url_buff, sizeof(url_buff), "%s?command=%s&media_id=%s", base_url, command_ptr, media_id_ptr);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url_buff);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
+
+    res = curl_easy_perform(curl);
+    // check for errors
+    if (res != CURLE_OK)
+    {
+      fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
+      goto CLEANUP;
+    }
+
+    // -- all of the chunk stream that we've read is there, so we can do something with it --
+    check_error_from_response((const char*)res_st->contents, res_st);
+  }
   else
   {
     fprintf(stderr, "Unknown request type to Twitter API");
-    goto CLEANUP;
   }
 
 CLEANUP:
@@ -481,9 +529,8 @@ void tt_api_update_status_with_image(const char* status, const char* image_path,
   snprintf(media_type_s, sizeof(media_type_s), "image/%s", file_extension);
 
   // handling in steps for tweeting with image
-  // 1. send INIT command via API
+  // 1. INIT command via API
   do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_INIT, &res_st, &(KEYVALUE){"command", "INIT", strlen("INIT")}, &(KEYVALUE){"total_bytes", file_size_s, strlen(file_size_s)}, &(KEYVALUE){"media_type", media_type_s, strlen(media_type_s)}, NULL);
-  printf("INIT response = %s\n", res_st.contents);
   // check for any error
   if (res_st.error_code != 0)
   {
@@ -501,8 +548,6 @@ void tt_api_update_status_with_image(const char* status, const char* image_path,
     return;
   }
 
-  printf("media id = %s\n", media_id);
-
   // free contents memory as used by previous request
   free(res_st.contents);
   // clear api response structure, and reuse it
@@ -513,10 +558,9 @@ void tt_api_update_status_with_image(const char* status, const char* image_path,
    
   res_st.userdata = (void*)&image_file_size;
 
-  // 2. append command via API
+  // 2. APPEND command via API
   // read file as binary data
   unsigned char file_buffer[image_file_size];
-  printf("image path: %s\n", image_path);
   if (tt_util_read_fileb(image_path, file_buffer, image_file_size) <= 0)
   {
     return;
@@ -529,7 +573,41 @@ void tt_api_update_status_with_image(const char* status, const char* image_path,
   // set as piggyback userdata for response struct
   res_st.userdata = (void*)&media_piggyback;
 
+  // note: no need to send in KEYVALUE of "media" field - it's binary value content which will be sent via multipart-form
   do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_APPEND, &res_st, &(KEYVALUE){"command", "APPEND", strlen("APPEND")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, &(KEYVALUE){"segment_index", "0", strlen("0")}, NULL);
-  printf("APPEND response = %s\n", res_st.contents);
+  // check for any error
+  if (res_st.error_code != 0)
+  {
+    return;
+  }
 
+  // clear response struct then reuse it
+  free(res_st.contents);
+  init_defaults_api_response_st_(&res_st);
+  // allocate new memory buffer
+  res_st.contents = malloc(1);
+  memset(res_st.contents, 0, 1);
+
+  // 3. FINALIZE command via API
+  do_http_request(HTTP_METHOD_POST, "https://upload.twitter.com/1.1/media/upload.json", API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_FINALIZE, &res_st, &(KEYVALUE){"command", "FINALIZE", strlen("FINALIZE")}, &(KEYVALUE){"media_id", media_id, strlen(media_id)}, NULL);
+  // check for any error
+  if (res_st.error_code != 0)
+  {
+    return;
+  }
+
+  // clear response struct then reuse it
+  free(res_st.contents);
+  init_defaults_api_response_st_(&res_st);
+  // allocate new memory buffer
+  res_st.contents = malloc(1);
+  memset(res_st.contents, 0, 1);
+  
+  // Finally tweet
+  do_http_request(HTTP_METHOD_POST, "https://api.twitter.com/1.1/statuses/update.json", API_REQUEST_TYPE_POST_TWEET, &res_st, &(KEYVALUE){"status", (char*)status, strlen(status)}, &(KEYVALUE){"media_ids", media_id, strlen(media_id)},  NULL);
+  // if success, then 
+  if (res_st.error_code == 0)
+  {
+    printf("Tweeted done\n");
+  } 
 }
