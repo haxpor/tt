@@ -425,12 +425,10 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
     new_data_buffer[i].value = malloc(LEXI_BUFFER_SIZE+1);
 
     // copy string to key
-    //strncpy(new_data_buffer[i].key, data[i]->key, strlen(data[i]->key));
     memcpy(new_data_buffer[i].key, data[i]->key, strlen(data[i]->key));
     new_data_buffer[i].key[strlen(data[i]->key)] = '\0';
 
     // copy string to value
-    //strncpy(new_data_buffer[i].value, data[i]->value, data[i]->size);
     memcpy(new_data_buffer[i].value, data[i]->value, data[i]->size);
     new_data_buffer[i].value[data[i]->size] = '\0';
 
@@ -445,8 +443,6 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
   temp_kv.key = malloc(LEXI_BUFFER_SIZE+1);
   temp_kv.value = malloc(LEXI_BUFFER_SIZE+1);
 
-  printf("-----------\n");
-
   do {
     int newn = 0;
     for (int i=1; i<n; i++)
@@ -455,44 +451,32 @@ KEYVALUE* tt_util_sort_lexi(const KEYVALUE* data[], int size)
       if (strcmp(new_data_buffer[i-1].key, new_data_buffer[i].key) > 0)
       {
         // copy key from data[i] to temp
-        //strncpy(temp_kv.key, new_data_buffer[i].key, strlen(new_data_buffer[i].key));
         memcpy(temp_kv.key, new_data_buffer[i].key, strlen(new_data_buffer[i].key));
         temp_kv.key[strlen(new_data_buffer[i].key)] = '\0';
-        printf("temp_kv.key = %s\n", temp_kv.key);
 
         // copy value from data[i] to temp
-        //strncpy(temp_kv.value, new_data_buffer[i].value, new_data_buffer[i].size);
         memcpy(temp_kv.value, new_data_buffer[i].value, new_data_buffer[i].size);
         temp_kv.value[new_data_buffer[i].size] = '\0';
-        printf("temp_kv.value = %s\n", temp_kv.value);
 
         // set size to temp
         temp_kv.size = new_data_buffer[i].size;
         
         // copy key & value from data[i-1] to data[i]
-        //strncpy(new_data_buffer[i].key, new_data_buffer[i-1].key, strlen(new_data_buffer[i-1].key));
         memcpy(new_data_buffer[i].key, new_data_buffer[i-1].key, strlen(new_data_buffer[i-1].key));
         new_data_buffer[i].key[strlen(new_data_buffer[i-1].key)] = '\0';
-        printf("new_data_buffer[%d].key = %s\n", i, new_data_buffer[i].key);
 
-        //strncpy(new_data_buffer[i].value, new_data_buffer[i-1].value, new_data_buffer[i-1].size);
         memcpy(new_data_buffer[i].value, new_data_buffer[i-1].value, new_data_buffer[i-1].size);
         new_data_buffer[i].value[new_data_buffer[i-1].size] = '\0';
-        printf("new_data_buffer[%d].value = %s\n", i, new_data_buffer[i].value);
 
         // set size
         new_data_buffer[i].size = new_data_buffer[i-1].size;
 
         // copy temp to data[i-1]
-        //strncpy(new_data_buffer[i-1].key, temp_kv.key, strlen(temp_kv.key));
         memcpy(new_data_buffer[i-1].key, temp_kv.key, strlen(temp_kv.key));
         new_data_buffer[i-1].key[strlen(temp_kv.key)] = '\0';
-        printf("new_data_buffer[%d].key = %s\n", i, new_data_buffer[i-1].key);
 
-        //strncpy(new_data_buffer[i-1].value, temp_kv.value, temp_kv.size);
         memcpy(new_data_buffer[i-1].value, temp_kv.value, temp_kv.size);
         new_data_buffer[i-1].value[temp_kv.size] = '\0';
-        printf("new_data_buffer[%d].value = %s\n", i, new_data_buffer[i-1].value);
 
         // set size
         new_data_buffer[i-1].size = temp_kv.size;

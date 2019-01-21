@@ -299,10 +299,6 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
       }
     }
 
-    printf("media_type = %s\n", media_type_ptr);
-    printf("command = %s\n", command_ptr);
-    printf("total_bytes = %s\n", total_bytes_ptr);
-
     // the only value we neee to pay attention to is media_type
     // we need to percent encode it
     char* pen_media_type = tt_util_percent_encode(media_type_ptr, strlen(media_type_ptr));
@@ -313,16 +309,11 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
 
     free(pen_media_type);
 
-    printf("url = %s\n", url_buff);
-    printf("url buff strlen = %ld\n", strlen(url_buff));
-
     curl_easy_setopt(curl, CURLOPT_URL, url_buff);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_response);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)res_st);
-
-    printf("before\n");
 
     res = curl_easy_perform(curl);
     // check for errors
@@ -333,8 +324,6 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     }
 
     // -- all of the chunk stream that we've read is there, so we can do something with it --
-    printf("----\n");
-    printf("contents = %s\n", res_st->contents);
     check_error_from_response((const char*)res_st->contents, res_st);
   }
   else if (req_type == API_REQUEST_TYPE_POST_TWEET_WITH_IMAGE_APPEND)
@@ -369,14 +358,11 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
 
     // get userdata as media_st
     struct media_st* media_piggyback = (struct media_st*)res_st->userdata;
-    printf("size: %zu\n", media_piggyback->size);
 
     // note: no need to add "media" parameter here as we will send it as multipart-data
     char url_buff[URL_BUFF_LEN+1];
     memset(url_buff, 0, sizeof(url_buff));
     snprintf(url_buff, sizeof(url_buff), "%s?command=%s&media_id=%s&segment_index=%s", base_url, command_ptr, media_id_ptr, segment_index_ptr);
-
-    printf("url = %s\n", url_buff);
 
     curl_easy_setopt(curl, CURLOPT_URL, url_buff);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "tt cli");
@@ -461,7 +447,6 @@ void tt_api_update_status(const char* status, int* error_code)
 
 void tt_api_update_status_with_image(const char* status, const char* image_path, int* error_code)
 {
-  printf("input image path = %s\n", image_path);
   struct api_response_st_ res_st;
   init_defaults_api_response_st_(&res_st);
   // pre-allocate the buffer just 1 byte, will grow as need later
@@ -483,15 +468,12 @@ void tt_api_update_status_with_image(const char* status, const char* image_path,
   snprintf(file_size_s, sizeof(file_size_s), "%ld", image_file_size);
 
   // determine the input file extension
-  printf("image path = %s\n", image_path);
   const char* file_extension = tt_util_get_fileextension(image_path);
   if (file_extension == NULL)
   {
     // TODO: should we also set error_code's value before returning?
     return;
   }
-  printf("image path = %s\n", image_path);
-  printf("file extension = %s\n", file_extension);
 
   // form media type string
   char media_type_s[10+1];
