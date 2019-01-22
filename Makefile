@@ -2,7 +2,7 @@ output = tt
 
 cc = gcc
 
-cflags = -std=c99 -g -Isrc/tt -Isrc/externals
+cflags = -std=c99 -Isrc/tt -Isrc/externals
 lflags = -lcrypto -lcurl
 
 base_dir = src
