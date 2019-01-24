@@ -262,6 +262,8 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     if (res != CURLE_OK)
     {
       fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
+      // set error code
+      res_st->error_code = -1;
       goto CLEANUP;
     }
 
@@ -322,6 +324,8 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     if (res != CURLE_OK)
     {
       fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
+      // set error code
+      res_st->error_code = -1;
       goto CLEANUP;
     }
 
@@ -385,6 +389,9 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     if (res != CURLE_OK)
     {
       fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
+      // set error code
+      res_st->error_code = -1;
+
       curl_mime_free(form);
       goto CLEANUP;
     }
@@ -443,6 +450,8 @@ void do_http_request(enum e_http_method http_method, const char* base_url, enum 
     if (res != CURLE_OK)
     {
       fprintf(stderr, "Curl failed: %s\n", curl_easy_strerror(res));
+      // set error code
+      res_st->error_code = -1;
       goto CLEANUP;
     }
 
