@@ -2,9 +2,26 @@
 
 Simple and minimalistic Twitter client implemented in C.
 
-# Note
+# Dependencies
 
-Tested and built on macOS 10.14. But it should work on Linux. On Windows, there might be slightly more effort needed.
+You will need
+
+* [openssl](https://www.openssl.org/)
+* [curl](https://github.com/curl/curl)
+
+Make sure you install these in your system.
+
+# Build and Installation
+
+Use `CMake` to build the project.
+
+* Go to this project directory
+* `mkdir build`
+* `cmake ..` or for RELEASE build `cmake -DCMAKE_BUILD_TYPE=RELEASE ..`
+* `make -j4`
+* `sudo make install`
+
+Done
 
 # Setup
 
@@ -21,27 +38,7 @@ Set the following environment variables i.e. `~/.bash_profile` for your _Keys an
 
 Then on terminal window you're going to execute the program, remember to source the file via `source ~/.bash_profile`.
 
-# Requirement
-
-You will need
-
-* [openssl](https://www.openssl.org/)
-* [curl](https://github.com/curl/curl)
-
-installed on your system. In most case, you won't need to do anything as they are likely to be installed already.
-
-But if building the project doesn't work for you, try to install them.
-The recommend way is to compile and build it from source to install it. Follow instruction on each of requirement above.
-
-# Build and Installation
-
-Execute `make` to build the project.
-
-Then
-
-Execute `make install` to install it on your system (at `/usr/local/bin`).
-
-# Support Command
+# Commands Support
 
 - `tt update <tweet text>` - update tweet
 - `tt update <tweet text> -f /your/image/path` - update tweet along with a single image file
