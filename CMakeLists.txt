@@ -12,7 +12,7 @@
 ################
 
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0.2)
 PROJECT(tt)
 
 # Create a target that will be compiled to an executable
@@ -38,8 +38,8 @@ find_package(OpenSSL REQUIRED)
 target_link_libraries(tt PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 find_package(CURL REQUIRED)
-target_link_libraries(tt PUBLIC ${CURL_LIBRARIES})
+target_link_libraries(tt PRIVATE ${CURL_LIBRARIES})
 
 # Add system dependencies
 # Again, needs some custom logic for windows support
-target_link_libraries(tt m)
+target_link_libraries(tt PRIVATE m)
