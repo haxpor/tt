@@ -25,7 +25,9 @@ Use `CMake` to build the project.
 
 Done
 
-# Install via PPA
+# Install via published packages
+
+## Debian/Ubuntu
 
 * `sudo add-apt-repository ppa:haxpor/combined`
 * `sudo apt install tt`
