@@ -25,7 +25,14 @@ Use `CMake` to build the project.
 
 Done
 
+# Install via PPA
+
+* `sudo add-apt-repository ppa:haxpor/combined`
+* `sudo apt install tt`
+
 # Setup
+
+> If you install via PPA, it bundled with its own manpage. Just `man tt` to see the instruction on how to set up your environment.
 
 Create a new Twitter app on [https://developer.twitter.com/en/apps](https://developer.twitter.com/en/apps).
 
